@@ -19,7 +19,7 @@ data class Changelist(
 
         data class ModifiedFile(
             val name: String,
-            val beforeName: String? = name,
+            val beforeName: String = name,
             val patchLines: Collection<PatchLine>,
             val afterRevision: FileContents,
             val beforeRevision: FileContents = afterRevision.reversePatch(patchLines),

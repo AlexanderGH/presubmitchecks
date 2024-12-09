@@ -20,7 +20,7 @@ object GitChangelists {
             if (localOldFilename != null && localNewFilename != null) {
                 fileDiffs.add(Changelist.FileOperation.ModifiedFile(
                     localNewFilename,
-                    beforeName = if (localNewFilename == localOldFilename) null else localOldFilename,
+                    beforeName = localOldFilename,
                     patchLines = parseFilePatch(localPatch),
                     afterRevision = FileContents.Text {
                         sequence {

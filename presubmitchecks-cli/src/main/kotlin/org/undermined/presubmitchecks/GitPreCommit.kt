@@ -6,6 +6,7 @@ import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.undermined.presubmitchecks.checks.IfChangeThenChangeChecker
 import org.undermined.presubmitchecks.core.Changelist
 import org.undermined.presubmitchecks.core.visit
@@ -28,7 +29,7 @@ internal class GitPreCommit : SuspendingCliktCommand() {
                 }
 
                 "@exec" -> {
-                    with(Dispatchers.IO) {
+                    withContext(Dispatchers.IO) {
                         val process = Runtime.getRuntime().exec(arrayOf("git", "diff", "HEAD"))
                         try {
                             GitChangelists.parseDiff(
@@ -41,7 +42,7 @@ internal class GitPreCommit : SuspendingCliktCommand() {
                 }
 
                 else -> {
-                    with(Dispatchers.IO) {
+                    withContext(Dispatchers.IO) {
                         GitChangelists.parseDiff(File(diff).bufferedReader().use {
                             it.lineSequence()
                         })
