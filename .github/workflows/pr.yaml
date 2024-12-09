@@ -1,20 +1,23 @@
-name: Check Pull Request
+name: Check PR
 on:
   pull_request:
     branches:
       - main
 
 jobs:
-  verify-pull-request:
+  checks:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v2
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/setup-java@v2
         with:
           distribution: zulu
           java-version: 17
           cache: gradle
       - run: ./gradlew assemble check
+        shell: bash
+      - name: Run Presubmit Checks
+        uses: './'
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}

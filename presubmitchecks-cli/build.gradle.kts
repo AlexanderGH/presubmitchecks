@@ -1,11 +1,15 @@
 plugins {
     id("buildlogic.kotlin-application-conventions")
+    alias(libs.plugins.kotlinx.serialization.json)
 }
 
 dependencies {
     implementation(project(":presubmitchecks-core"))
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.clikt)
+    implementation(libs.retrofit.core)
+    implementation(libs.retrofit.converter.kotlinx.serialization)
 }
 
 application {

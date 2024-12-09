@@ -1,0 +1,26 @@
+name: 'Presubmit Checks'
+description: 'GitHub Action for a suite of useful presubmit/premerge checks.'
+author: 'Alexander Zlatin'
+
+inputs:
+  repo-token:
+    description: A token that grants access to read/write actions. Usually secrets.GITHUB_TOKEN.
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-java@v2
+      with:
+        distribution: zulu
+        java-version: 17
+        cache: gradle
+    - run: $GITHUB_ACTION_PATH/gradlew :presubmitchecks-cli:assemble
+      shell: bash
+    - run: $GITHUB_ACTION_PATH/gradlew :presubmitchecks-cli:fatJar
+      shell: bash
+    - run: java -jar $GITHUB_ACTION_PATH/presubmitchecks-cli/build/libs/presubmitchecks-cli-standalone.jar github-action
+      shell: bash
+      env:
+        GITHUB_REPO_TOKEN: ${{ inputs.repo-token }}
