@@ -4,7 +4,8 @@ plugins {
 
 dependencies {
     implementation(project(":presubmitchecks-core"))
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.clikt)
 }
 
 application {

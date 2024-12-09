@@ -6,26 +6,24 @@ data class Changelist(
     val files: Collection<FileOperation>,
 ) {
 
-    sealed class FileOperation {
+    sealed interface FileOperation {
         data class AddedFile(
             val name: String,
-            val afterRevision: suspend () -> Sequence<String>,
-        ) : FileOperation()
+            val afterRevision: FileContents,
+        ) : FileOperation
 
         data class RemovedFile(
             val name: String,
-            val beforeRevision: suspend () -> Sequence<String>,
-        ) : FileOperation()
+            val beforeRevision: FileContents,
+        ) : FileOperation
 
         data class ModifiedFile(
             val name: String,
             val beforeName: String? = name,
             val patchLines: Collection<PatchLine>,
-            val afterRevision: suspend () -> Sequence<String>,
-            val beforeRevision: suspend () -> Sequence<String> = {
-                afterRevision().reversePatch(patchLines)
-            },
-        ) : FileOperation()
+            val afterRevision: FileContents,
+            val beforeRevision: FileContents = afterRevision.reversePatch(patchLines),
+        ) : FileOperation
     }
 
     data class PatchLine(

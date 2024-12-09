@@ -3,4 +3,6 @@ plugins {
 }
 
 dependencies {
+    testImplementation(libs.kotlinx.coroutines.core)
+    testImplementation(libs.strikt)
 }

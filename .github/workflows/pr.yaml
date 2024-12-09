@@ -1,0 +1,20 @@
+name: Check Pull Request
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  verify-pull-request:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@v2
+        with:
+          distribution: zulu
+          java-version: 17
+          cache: gradle
+      - run: ./gradlew assemble check

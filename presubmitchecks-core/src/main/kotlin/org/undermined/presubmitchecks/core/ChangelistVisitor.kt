@@ -29,7 +29,7 @@ suspend fun Changelist.visit(visitors: Collection<ChangelistVisitor>) {
 
         when (file) {
             is Changelist.FileOperation.AddedFile -> {
-                file.afterRevision().forEachIndexed { i, content ->
+                (file.afterRevision as? FileContents.Text)?.lines?.invoke()?.forEachIndexed { i, content ->
                     visitors.forEach {
                         it.visitChangedLine(Changelist.ChangeOperation.ADDED, i + 1, content)
                         (it as? ChangelistVisitor.FileAfterVisitor)?.visitAfterLine(i + 1, content, true)
@@ -37,7 +37,7 @@ suspend fun Changelist.visit(visitors: Collection<ChangelistVisitor>) {
                 }
             }
             is Changelist.FileOperation.RemovedFile -> {
-                file.beforeRevision().forEachIndexed { i, content ->
+                (file.beforeRevision as? FileContents.Text)?.lines?.invoke()?.forEachIndexed { i, content ->
                     visitors.forEach {
                         it.visitChangedLine(Changelist.ChangeOperation.REMOVED, i + 1, content)
                         (it as? ChangelistVisitor.FileBeforeVisitor)?.visitBeforeLine(i + 1, content, true)
@@ -51,7 +51,7 @@ suspend fun Changelist.visit(visitors: Collection<ChangelistVisitor>) {
                             .filter { it.operation == Changelist.ChangeOperation.REMOVED }
                             .map { it.line }
                             .toSet()
-                        file.beforeRevision().forEachIndexed { i, content ->
+                        (file.beforeRevision as? FileContents.Text)?.lines?.invoke()?.forEachIndexed { i, content ->
                             fileBeforeVisitors.forEach { fileBeforeVisitor ->
                                 fileBeforeVisitor.visitBeforeLine(i + 1, content, modifiedLines.contains(i + 1))
                             }
@@ -69,7 +69,7 @@ suspend fun Changelist.visit(visitors: Collection<ChangelistVisitor>) {
                             .filter { it.operation == Changelist.ChangeOperation.ADDED }
                             .map { it.line }
                             .toSet()
-                        file.afterRevision().forEachIndexed { i, content ->
+                        (file.afterRevision as? FileContents.Text)?.lines?.invoke()?.forEachIndexed { i, content ->
                             fileAfterVisitors.forEach { fileBeforeVisitor ->
                                 fileBeforeVisitor.visitAfterLine(i + 1, content, modifiedLines.contains(i + 1))
                             }

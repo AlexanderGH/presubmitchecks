@@ -1,5 +1,7 @@
-package org.undermined.presubmitchecks.core
+package org.undermined.presubmitchecks.checks
 
+import org.undermined.presubmitchecks.core.Changelist
+import org.undermined.presubmitchecks.core.ChangelistVisitor
 import java.nio.file.Path
 
 /**
@@ -9,7 +11,8 @@ class IfChangeThenChangeChecker :
     ChangelistVisitor,
     ChangelistVisitor.FileAfterVisitor
 {
-    private val ifChangeThenChange = """[\s/#;<>\-]*LINT\.(?:(IfChange)(?:\(([a-z\-]+)\))?|(ThenChange)\(([^):]*(?::[a-z-]+)?)\))""".toRegex()
+    private val ifChangeThenChange =
+        """[\s/#;<>\-]*LINT\.(?:(IfChange)(?:\(([a-z\-]+)\))?|(ThenChange)\(([^):]*(?::[a-z-]+)?)\))[\s/#;<>\-]*""".toRegex()
 
     private val needsChangedBlocks = mutableSetOf<String>()
     private val changedBlocks = mutableSetOf<String>()
@@ -47,7 +50,7 @@ class IfChangeThenChangeChecker :
                 } else if (path.isEmpty()) {
                     currentFile.toString()
                 } else {
-                    currentFile!!.parent.resolve(path).toString()
+                    currentFile!!.parent?.resolve(path)?.toString() ?: path
                 }
                 val label = if (targetLabelParts.size == 2) ":${targetLabelParts[1]}" else ""
                 needsChangedBlocks.add("//$file$label")

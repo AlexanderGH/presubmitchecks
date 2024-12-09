@@ -2,4 +2,7 @@
 kotlin-gradle-plugin = "2.0.0"
 
 [libraries]
+clikt = { module = "com.github.ajalt.clikt:clikt-markdown", version = "5.0.2"}
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin-gradle-plugin" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version = "1.8.1"}
+strikt = { module = "io.strikt:strikt-core", version = "0.35.1" }
