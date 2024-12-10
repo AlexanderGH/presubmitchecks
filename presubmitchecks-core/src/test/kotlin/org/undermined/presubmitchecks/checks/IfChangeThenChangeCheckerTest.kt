@@ -10,8 +10,10 @@ import strikt.assertions.containsExactly
 import strikt.assertions.isEmpty
 
 internal class IfChangeThenChangeCheckerTest {
-    private val LINT_IC = "LINT.${""}IfChange"
-    private val LINT_TC = "LINT.${""}ThenChange"
+    companion object {
+        private const val LINT_IC = "LINT.${""}IfChange"
+        private const val LINT_TC = "LINT.${""}ThenChange"
+    }
 
     @Test
     fun testNoBlocks() {
@@ -127,6 +129,15 @@ internal class IfChangeThenChangeCheckerTest {
             val checker = IfChangeThenChangeChecker()
             changelist.visit(listOf(checker))
             expectThat(checker.getMissingChanges()).containsExactly("//bar.txt:a")
+            expectThat(checker.getResults().joinToString("\n\n") { it.toConsoleOutput() }).equals(
+                """
+                IfChangeThenChange (WARNING)
+                Missing Changes
+                The following locations should also be changed:
+                  //bar.txt:a
+                foo.txt 3:null null:null
+                """.trimIndent()
+            )
         }
     }
 }

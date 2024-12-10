@@ -55,12 +55,12 @@ internal class GitPreCommit : SuspendingCliktCommand() {
 
         changelist.visit(listOf(ifChangeThenChange))
 
-        val missingChanges = ifChangeThenChange.getMissingChanges()
-        if (missingChanges.isNotEmpty()) {
-            echo("Missing changes to these blocks:\n")
-            missingChanges.forEach {
-                echo(" $it\n")
-            }
+        val results = ifChangeThenChange.getResults()
+        results.forEach {
+            println(it.toConsoleOutput())
+            println("\n")
+        }
+        if (results.isNotEmpty()) {
             throw CliktError(statusCode = 1)
         }
     }
