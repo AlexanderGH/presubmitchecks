@@ -13,6 +13,7 @@ import kotlinx.serialization.json.decodeFromStream
 import okhttp3.MediaType
 import org.undermined.presubmitchecks.checks.IfChangeThenChangeChecker
 import org.undermined.presubmitchecks.core.Changelist
+import org.undermined.presubmitchecks.core.CheckResultMessage
 import org.undermined.presubmitchecks.core.FileContents
 import org.undermined.presubmitchecks.core.visit
 import org.undermined.presubmitchecks.git.GitChangelists
@@ -44,10 +45,12 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
             .addConverterFactory(json.asConverterFactory(jsonMediaType))
             .build()
         val githubService = retrofit.create(GithubService::class.java)
+        println("Initialized")
 
         val event = File(githubEventPath).inputStream().use {
             json.decodeFromStream<GithubEvent>(it)
         }
+        println("Parsed Event")
 
         val changedFiles = githubService.getPullRequestFiles(
             "Bearer $githubRepoToken",
@@ -56,6 +59,7 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
             event.pull_request.number,
             1
         ).execute().body().orEmpty()
+        println("Fetched PR")
 
         val changelist = Changelist(
             title = event.pull_request.title,
@@ -115,19 +119,23 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
                 }
             }
         )
+        println("Created Changelist")
 
         val ifChangeThenChange = IfChangeThenChangeChecker()
 
         changelist.visit(listOf(ifChangeThenChange))
 
-        val missingChanges = ifChangeThenChange.getMissingChanges()
-        if (missingChanges.isNotEmpty()) {
-            echo("Missing changes to these blocks:\n")
-            missingChanges.forEach {
-                echo(" $it\n")
-            }
+        println("Finished")
+
+        val results = ifChangeThenChange.getResults()
+        results.forEach {
+            println(it.toConsoleOutput())
+            println("\n")
+        }
+        if (results.isNotEmpty()) {
             throw CliktError(statusCode = 1)
         }
+        println("Done")
     }
 
     private fun contentsForFileRef(
@@ -139,8 +147,10 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
         val rawFetcher: () -> InputStream = {
             if (File(".git").exists()) {
                 if (ref == pullRequest.head.sha) {
+                    println("Reading $filename @ $ref from filesystem")
                     File(filename).inputStream()
                 } else {
+                    println("Reading $filename @ $ref from git")
                     Runtime.getRuntime().exec(arrayOf("git", "show", "$ref:$filename")).inputStream
                 }
             } else {
