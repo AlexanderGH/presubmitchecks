@@ -3,6 +3,7 @@ package org.undermined.presubmitchecks.core
 import java.nio.file.Path
 
 interface Checker {
+    val id: String
     fun getResults(): List<CheckResult>
 }
 
@@ -10,6 +11,12 @@ interface CheckResult {
 
     fun toConsoleOutput(): String {
         return toString()
+    }
+}
+
+data class CheckResultDebug(val message: String) : CheckResult {
+    override fun toConsoleOutput(): String {
+        return "[DEBUG] $message"
     }
 }
 
@@ -38,8 +45,12 @@ data class CheckResultMessage(
     override fun toConsoleOutput(): String {
         return StringBuilder().append(checkGroupId).append(" (").append(severity).append(")\n")
             .append(title).append("\n")
-            .append(message).append("\n")
-            .append(location?.let { "${it.file} ${arrayOf(it.startLine, ":", it.startCol, " ", it.endLine, ":", it.endCol).joinToString("")}" } ?: "")
+            .append(message).apply {
+                location?.let {
+                    append("\n")
+                    append("${it.file} ${arrayOf(it.startLine, ":", it.startCol, " ", it.endLine, ":", it.endCol).joinToString("")}")
+                }
+            }
             .toString()
     }
 }

@@ -3,6 +3,7 @@ package org.undermined.presubmitchecks.checks
 import org.undermined.presubmitchecks.core.Changelist
 import org.undermined.presubmitchecks.core.ChangelistVisitor
 import org.undermined.presubmitchecks.core.CheckResult
+import org.undermined.presubmitchecks.core.CheckResultDebug
 import org.undermined.presubmitchecks.core.CheckResultMessage
 import org.undermined.presubmitchecks.core.Checker
 import java.nio.file.Path
@@ -39,7 +40,24 @@ class IfChangeThenChangeChecker :
     private var currentBlockTracked = false
     private var blockStack = ArrayDeque<String>()
 
-    override fun enterFile(file: Changelist.FileOperation) {
+    private val results = mutableListOf<CheckResult>()
+
+    override val id = ID
+
+    override fun enterChangelist(changelist: Changelist): Boolean {
+        return if (changelist.tags.contains(TAG_NO_IFTT)) {
+            results.add(
+                CheckResultDebug(
+                    "Skipping $ID because $TAG_NO_IFTT was found: ${changelist.tags[TAG_NO_IFTT]}"
+                )
+            )
+            false
+        } else {
+            true
+        }
+    }
+
+    override fun enterFile(file: Changelist.FileOperation): Boolean {
         super.enterFile(file)
         currentFile = when (file) {
             is Changelist.FileOperation.AddedFile -> Path.of(file.name)
@@ -47,6 +65,7 @@ class IfChangeThenChangeChecker :
             is Changelist.FileOperation.RemovedFile -> Path.of(file.name)
         }
         currentBlockTracked = false
+        return true
     }
 
     override fun visitAfterLine(line: Int, content: String, modified: Boolean) {
@@ -96,7 +115,7 @@ class IfChangeThenChangeChecker :
 
     override fun leaveFile(file: Changelist.FileOperation) {
         super.leaveFile(file)
-        check(blockStack.isEmpty())
+        check(blockStack.isEmpty()) { "Unclosed blocks: $blockStack" }
         currentFile = null
     }
 
@@ -120,9 +139,9 @@ class IfChangeThenChangeChecker :
                 }.add(entry.key)
             }
         }
-        return requesterToMissing.map { entry ->
+        return results + requesterToMissing.map { entry ->
             CheckResultMessage(
-                checkGroupId = "IfChangeThenChange",
+                checkGroupId = ID,
                 title = "Missing Changes",
                 message = "The following locations should also be changed:\n  ${
                     entry.value.joinToString("  \n")
@@ -131,5 +150,10 @@ class IfChangeThenChangeChecker :
                 location = blockToLocation[entry.key]
             )
         }
+    }
+
+    private companion object {
+        const val ID = "IfChangeThenChange"
+        const val TAG_NO_IFTT = "NO_IFTT"
     }
 }
