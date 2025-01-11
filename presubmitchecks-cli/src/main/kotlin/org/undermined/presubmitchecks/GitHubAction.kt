@@ -5,12 +5,17 @@ import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.asExecutor
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import okhttp3.MediaType
+import okhttp3.OkHttpClient
 import org.undermined.presubmitchecks.checks.IfChangeThenChangeChecker
 import org.undermined.presubmitchecks.core.Changelist
 import org.undermined.presubmitchecks.core.FileContents
@@ -27,6 +32,7 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 import java.io.File
 import java.io.InputStream
+import java.util.Arrays
 
 class GitHubAction : SuspendingCliktCommand("github-action") {
     val githubApiUrl by option(envvar = "GITHUB_API_URL").required()
@@ -39,9 +45,13 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
             ignoreUnknownKeys = true
         }
         val jsonMediaType = MediaType.get("application/json; charset=UTF8")
+        val okHttpClient = OkHttpClient.Builder()
+            .build()
         val retrofit = Retrofit.Builder()
             .baseUrl(githubApiUrl)
             .addConverterFactory(json.asConverterFactory(jsonMediaType))
+            .client(okHttpClient)
+            .callbackExecutor(Dispatchers.IO.asExecutor())
             .build()
         val githubService = retrofit.create(GithubService::class.java)
 
@@ -120,12 +130,15 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
 
         changelist.visit(listOf(ifChangeThenChange))
 
-        val missingChanges = ifChangeThenChange.getMissingChanges()
-        if (missingChanges.isNotEmpty()) {
-            echo("Missing changes to these blocks:\n")
-            missingChanges.forEach {
-                echo(" $it\n")
-            }
+        okHttpClient.dispatcher().executorService().shutdown()
+        okHttpClient.connectionPool().evictAll()
+
+        val results = ifChangeThenChange.getResults()
+        results.forEach {
+            echo(it.toConsoleOutput())
+            echo("\n")
+        }
+        if (results.isNotEmpty()) {
             throw CliktError(statusCode = 1)
         }
     }
