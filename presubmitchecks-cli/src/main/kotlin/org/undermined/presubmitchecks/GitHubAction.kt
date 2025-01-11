@@ -2,13 +2,12 @@ package org.undermined.presubmitchecks
 
 import com.github.ajalt.clikt.command.SuspendingCliktCommand
 import com.github.ajalt.clikt.core.CliktError
+import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
+import com.github.ajalt.clikt.parameters.types.boolean
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.asExecutor
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
@@ -18,26 +17,30 @@ import okhttp3.MediaType
 import okhttp3.OkHttpClient
 import org.undermined.presubmitchecks.checks.IfChangeThenChangeChecker
 import org.undermined.presubmitchecks.core.Changelist
+import org.undermined.presubmitchecks.core.ChangelistVisitor
+import org.undermined.presubmitchecks.core.CheckResultDebug
+import org.undermined.presubmitchecks.core.CheckResultMessage
+import org.undermined.presubmitchecks.core.CheckResultMessage.Severity
+import org.undermined.presubmitchecks.core.Checker
 import org.undermined.presubmitchecks.core.FileContents
 import org.undermined.presubmitchecks.core.visit
 import org.undermined.presubmitchecks.git.GitChangelists
+import org.undermined.presubmitchecks.git.GitHubWorkflowCommands
 import retrofit2.Call
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
-import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
-import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
 import java.io.File
 import java.io.InputStream
-import java.util.Arrays
 
 class GitHubAction : SuspendingCliktCommand("github-action") {
     val githubApiUrl by option(envvar = "GITHUB_API_URL").required()
     val githubRepoToken by option(envvar = "GITHUB_REPO_TOKEN").required()
     val githubEventPath by option(envvar = "GITHUB_EVENT_PATH").required()
+    val failOnWarnings by option(envvar = "INPUT_FAIL_ON_WARNINGS").boolean().default(false)
 
     @OptIn(ExperimentalSerializationApi::class)
     override suspend fun run() {
@@ -81,6 +84,7 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
                             it.patch == null,
                         ),
                     )
+
                     "removed" -> Changelist.FileOperation.RemovedFile(
                         it.filename,
                         beforeRevision = contentsForFileRef(
@@ -90,6 +94,7 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
                             it.patch == null,
                         ),
                     )
+
                     "modified" -> if (it.patch == null) {
                         Changelist.FileOperation.ModifiedFile(
                             it.filename,
@@ -121,24 +126,58 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
                             ),
                         )
                     }
+
                     else -> TODO()
                 }
             }
         )
 
-        val ifChangeThenChange = IfChangeThenChangeChecker()
-
-        changelist.visit(listOf(ifChangeThenChange))
-
-        okHttpClient.dispatcher().executorService().shutdown()
-        okHttpClient.connectionPool().evictAll()
-
-        val results = ifChangeThenChange.getResults()
-        results.forEach {
-            echo(it.toConsoleOutput())
-            echo("\n")
+        val checkers = mutableListOf<Checker>()
+        checkers.add(IfChangeThenChangeChecker())
+        try {
+            checkers.filterIsInstance<ChangelistVisitor>().takeIf { it.isNotEmpty() }?.let {
+                changelist.visit(it)
+            }
+        } finally {
+            okHttpClient.dispatcher().executorService().shutdown()
+            okHttpClient.connectionPool().evictAll()
         }
-        if (results.isNotEmpty()) {
+
+        var hasFailure = false
+        checkers.forEach { checker ->
+            val results = checker.getResults()
+            GitHubWorkflowCommands.group(checker.id) {
+                results.forEach {
+                    when (it) {
+                        is CheckResultMessage -> {
+                            if (
+                                it.severity == Severity.ERROR || (
+                                    it.severity == Severity.WARNING && failOnWarnings
+                                )
+                            ) {
+                                hasFailure = true
+                            }
+                            val location = it.location
+                            GitHubWorkflowCommands.message(
+                                severity = it.severity,
+                                title = "${it.checkGroupId}: ${it.title}",
+                                message = it.message,
+                                file = location?.file.toString(),
+                                line = location?.startLine,
+                                endLine = location?.endLine,
+                                col = location?.startCol,
+                                endColumn = location?.endCol,
+                            )
+                        }
+
+                        is CheckResultDebug -> {
+                            GitHubWorkflowCommands.debug(it.message)
+                        }
+                    }
+                }
+            }
+        }
+        if (hasFailure) {
             throw CliktError(statusCode = 1)
         }
     }

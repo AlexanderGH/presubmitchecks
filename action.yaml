@@ -6,6 +6,10 @@ inputs:
   repo-token:
     description: A token that grants access to read/write actions. Usually secrets.GITHUB_TOKEN.
     required: true
+  fail-on-warnings:
+    description: Whether to fail the action on warnings in addition to errors.
+    required: false
+    default: "false"
 
 runs:
   using: "composite"
@@ -14,9 +18,13 @@ runs:
       with:
         distribution: temurin
         java-version: 17
-    - run: $GITHUB_ACTION_PATH/gradlew :presubmitchecks-cli:installDist
+    - run: |
+        echo "::group::Install CLI"
+        $GITHUB_ACTION_PATH/gradlew :presubmitchecks-cli:installDist
+        echo "::endgroup::"
       shell: bash
     - run: $GITHUB_ACTION_PATH/presubmitchecks-cli/build/install/presubmitchecks-cli/bin/presubmitchecks-cli github-action
       shell: bash
       env:
         GITHUB_REPO_TOKEN: ${{ inputs.repo-token }}
+        INPUT_FAIL_ON_WARNINGS: ${{ inputs.fail-on-warnings }}

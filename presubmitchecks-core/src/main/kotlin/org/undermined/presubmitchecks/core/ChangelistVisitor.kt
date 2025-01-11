@@ -1,9 +1,9 @@
 package org.undermined.presubmitchecks.core
 
 interface ChangelistVisitor {
-    fun enterChangelist(changelist: Changelist) {}
+    fun enterChangelist(changelist: Changelist): Boolean { return true }
 
-    fun enterFile(file: Changelist.FileOperation) {}
+    fun enterFile(file: Changelist.FileOperation): Boolean { return true }
 
     fun visitChangedLine(operation: Changelist.ChangeOperation, line: Int, content: String) {}
 
@@ -22,15 +22,15 @@ interface ChangelistVisitor {
 
 suspend fun Changelist.visit(visitors: Collection<ChangelistVisitor>) {
     val changelist = this
-    visitors.forEach { it.enterChangelist(changelist) }
+    val changelistVisitors = visitors.filter { it.enterChangelist(changelist) }
 
     changelist.files.forEach { file ->
-        visitors.forEach { it.enterFile(file) }
+        val fileVisitors = changelistVisitors.filter { it.enterFile(file) }
 
         when (file) {
             is Changelist.FileOperation.AddedFile -> {
                 (file.afterRevision as? FileContents.Text)?.lines?.invoke()?.forEachIndexed { i, content ->
-                    visitors.forEach {
+                    fileVisitors.forEach {
                         it.visitChangedLine(Changelist.ChangeOperation.ADDED, i + 1, content)
                         (it as? ChangelistVisitor.FileAfterVisitor)?.visitAfterLine(i + 1, content, true)
                     }
@@ -38,14 +38,14 @@ suspend fun Changelist.visit(visitors: Collection<ChangelistVisitor>) {
             }
             is Changelist.FileOperation.RemovedFile -> {
                 (file.beforeRevision as? FileContents.Text)?.lines?.invoke()?.forEachIndexed { i, content ->
-                    visitors.forEach {
+                    fileVisitors.forEach {
                         it.visitChangedLine(Changelist.ChangeOperation.REMOVED, i + 1, content)
                         (it as? ChangelistVisitor.FileBeforeVisitor)?.visitBeforeLine(i + 1, content, true)
                     }
                 }
             }
             is Changelist.FileOperation.ModifiedFile -> {
-                visitors.filterIsInstance<ChangelistVisitor.FileBeforeVisitor>().let { fileBeforeVisitors ->
+                fileVisitors.filterIsInstance<ChangelistVisitor.FileBeforeVisitor>().let { fileBeforeVisitors ->
                     if (fileBeforeVisitors.isNotEmpty()) {
                         val modifiedLines = file.patchLines
                             .filter { it.operation == Changelist.ChangeOperation.REMOVED }
@@ -59,11 +59,11 @@ suspend fun Changelist.visit(visitors: Collection<ChangelistVisitor>) {
                     }
                 }
                 file.patchLines.forEach { patchLine ->
-                    visitors.forEach {
+                    fileVisitors.forEach {
                         it.visitChangedLine(patchLine.operation, patchLine.line, patchLine.content)
                     }
                 }
-                visitors.filterIsInstance<ChangelistVisitor.FileAfterVisitor>().let { fileAfterVisitors ->
+                fileVisitors.filterIsInstance<ChangelistVisitor.FileAfterVisitor>().let { fileAfterVisitors ->
                     if (fileAfterVisitors.isNotEmpty()) {
                         val modifiedLines = file.patchLines
                             .filter { it.operation == Changelist.ChangeOperation.ADDED }
@@ -79,8 +79,8 @@ suspend fun Changelist.visit(visitors: Collection<ChangelistVisitor>) {
             }
         }
 
-        visitors.forEach { it.leaveFile(file) }
+        fileVisitors.forEach { it.leaveFile(file) }
     }
 
-    visitors.forEach { it.leaveChangelist(changelist) }
+    changelistVisitors.forEach { it.leaveChangelist(changelist) }
 }

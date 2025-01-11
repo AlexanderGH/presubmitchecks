@@ -5,6 +5,15 @@ data class Changelist(
     val description: String,
     val files: Collection<FileOperation>,
 ) {
+    val tags: Map<String, String> by lazy {
+        val tagRegex = """([A-Za-z0-9_]+)(?:=|: )(.*?)""".toRegex()
+        description.lineSequence().mapNotNull {
+            tagRegex.matchEntire(it)
+        }.map {
+            val (key, value) = it.destructured
+            key to value
+        }.toMap()
+    }
 
     sealed interface FileOperation {
         data class AddedFile(

@@ -1,0 +1,11 @@
+LINT.IfChange(a)
+
+LINT.ThenChange(FileA.txt:a)
+
+LINT.IfChange(b)
+
+LINT.ThenChange(FileA.txt:b)
+
+LINT.IfChange
+
+LINT.ThenChange(FileA.txt:c)

@@ -9,8 +9,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.undermined.presubmitchecks.checks.IfChangeThenChangeChecker
 import org.undermined.presubmitchecks.core.Changelist
+import org.undermined.presubmitchecks.core.CheckResultDebug
+import org.undermined.presubmitchecks.core.CheckResultMessage
 import org.undermined.presubmitchecks.core.visit
 import org.undermined.presubmitchecks.git.GitChangelists
+import org.undermined.presubmitchecks.git.GitHubWorkflowCommands
 import java.io.File
 
 internal class GitPreCommit : SuspendingCliktCommand() {
@@ -57,8 +60,15 @@ internal class GitPreCommit : SuspendingCliktCommand() {
 
         val results = ifChangeThenChange.getResults()
         results.forEach {
-            println(it.toConsoleOutput())
-            println("\n")
+            when (it) {
+                is CheckResultMessage -> {
+                    echo(it.toConsoleOutput(), err = it.severity == CheckResultMessage.Severity.ERROR)
+                    echo("", err = it.severity == CheckResultMessage.Severity.ERROR)
+                }
+                is CheckResultDebug -> {
+                    echo(it.message)
+                }
+            }
         }
         if (results.isNotEmpty()) {
             throw CliktError(statusCode = 1)
