@@ -138,7 +138,7 @@
     "KeepSorted": {
       "severity": "ERROR",
       "templates": {
-        "gradle-dependencies": "block=yes case=no by_regex=(api|implementation|testImplementation)\"?\\([^)]\\) numeric=yes prefix_order=api,implementation,testImplementation,androidTestImplementation"
+        "gradle-dependencies": "block=yes case=no by_regex=(api|implementation|testImplementation)\"?\\([^)]\\) prefix_order=api,implementation,testImplementation,androidTestImplementation"
       }
     },
     "NewLine": {

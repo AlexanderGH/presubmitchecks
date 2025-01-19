@@ -306,12 +306,18 @@ class NewLineChecker(
             // keep-sorted start
             ".gradle",
             ".java",
+            ".js",
             ".json",
             ".kt",
             ".kts",
             ".md",
+            ".properties",
             ".py",
+            ".sh",
+            ".toml",
+            ".ts",
             ".txt",
+            ".xml",
             ".yaml",
             ".yml",
             // keep-sorted end
