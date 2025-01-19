@@ -120,6 +120,7 @@ class FileEndsInNewLineChecker(
             "kt",
             "kts",
             "md",
+            "toml",
             "yaml",
             // keep-sorted end
         )
