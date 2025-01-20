@@ -25,4 +25,4 @@ jobs:
         uses: './'
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          fail-on-warnings: true
+          config-file: .github/presubmitchecks.json

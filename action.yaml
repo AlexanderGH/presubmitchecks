@@ -6,10 +6,9 @@ inputs:
   repo-token:
     description: A token that grants access to read/write actions. Usually secrets.GITHUB_TOKEN.
     required: true
-  fail-on-warnings:
-    description: Whether to fail the action on warnings in addition to errors.
+  config-file:
+    description: Path to the presubmit checks config file.
     required: false
-    default: "false"
 
 runs:
   using: "composite"
@@ -27,4 +26,4 @@ runs:
       shell: bash
       env:
         GITHUB_REPO_TOKEN: ${{ inputs.repo-token }}
-        INPUT_FAIL_ON_WARNINGS: ${{ inputs.fail-on-warnings }}
+        INPUT_CONFIG_FILE: ${{ inputs.config-file }}
