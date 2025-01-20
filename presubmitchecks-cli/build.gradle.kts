@@ -16,3 +16,25 @@ dependencies {
 application {
     mainClass = "org.undermined.presubmitchecks.AppKt"
 }
+
+tasks {
+    register<Jar>("fatJar") {
+        dependsOn.addAll(listOf("compileJava", "compileKotlin", "processResources"))
+        archiveClassifier.set("standalone")
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        manifest {
+            attributes(mapOf("Main-Class" to application.mainClass))
+        }
+        val sourcesMain = sourceSets.main
+        dependsOn(configurations.runtimeClasspath)
+        from(configurations.runtimeClasspath.map {
+            it.map { file ->
+                if (file.isDirectory) {
+                    file
+                } else {
+                    zipTree(file)
+                }
+            } + sourcesMain.get().output
+        })
+    }
+}

@@ -18,7 +18,6 @@ object GitHubWorkflowCommands {
         endColumn: Int? = null,
     ) {
         val level = when (severity) {
-            CheckResultMessage.Severity.SUCCESS -> "notice"
             CheckResultMessage.Severity.NOTE -> "notice"
             CheckResultMessage.Severity.WARNING -> "warning"
             CheckResultMessage.Severity.ERROR -> "error"

@@ -1,21 +1,36 @@
 package org.undermined.presubmitchecks.checks
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
 import org.undermined.presubmitchecks.core.Changelist
 import org.undermined.presubmitchecks.core.ChangelistVisitor
 import org.undermined.presubmitchecks.core.CheckResult
 import org.undermined.presubmitchecks.core.CheckResultDebug
 import org.undermined.presubmitchecks.core.CheckResultMessage
 import org.undermined.presubmitchecks.core.Checker
+import org.undermined.presubmitchecks.core.CheckerChangelistVisitorFactory
+import org.undermined.presubmitchecks.core.CheckerProvider
+import org.undermined.presubmitchecks.core.CheckerReporter
+import org.undermined.presubmitchecks.core.CoreConfig
+import org.undermined.presubmitchecks.core.Repository
+import org.undermined.presubmitchecks.core.toResultSeverity
 import java.nio.file.Path
+import java.util.Optional
 
 /**
  * https://www.chromium.org/chromium-os/developer-library/guides/development/keep-files-in-sync/
  */
-class IfChangeThenChangeChecker :
+class IfChangeThenChangeChecker(
+    override val config: CoreConfig,
+) :
     Checker,
+    CheckerChangelistVisitorFactory,
     ChangelistVisitor,
     ChangelistVisitor.FileAfterVisitor
 {
+
     private val ifChangeThenChange =
         """[\s/#;<>\-]*LINT\.(?:(IfChange)(?:\(([a-z\-]+)\))?|(ThenChange)\(([^):]*(?::[a-z-]+)?)\))[\s/#;<>\-]*""".toRegex()
 
@@ -29,24 +44,27 @@ class IfChangeThenChangeChecker :
      * Key: Block id
      * Value: The file location of that block id.
      */
-    private val blockToLocation = mutableMapOf<String, CheckResultMessage.Location>()
-
-    /**
-     * The block ids that have been changed.
-     */
-    private val changedBlocks = mutableSetOf<String>()
+    private val changedBlockLocations = mutableMapOf<String, CheckResultMessage.Location>()
 
     private var currentFile: Path? = null
+    private var currentFileBlockCount = 0
     private var currentBlockTracked = false
     private var blockStack = ArrayDeque<String>()
 
-    private val results = mutableListOf<CheckResult>()
+    private var reporter: CheckerReporter? = null
 
-    override val id = ID
+    override fun newCheckVisitor(
+        repository: Repository,
+        changelist: Changelist,
+        reporter: CheckerReporter
+    ): Optional<ChangelistVisitor> {
+        this.reporter = reporter
+        return Optional.of(this)
+    }
 
     override fun enterChangelist(changelist: Changelist): Boolean {
         return if (changelist.tags.contains(TAG_NO_IFTT)) {
-            results.add(
+            reporter?.report(
                 CheckResultDebug(
                     "Skipping $ID because $TAG_NO_IFTT was found: ${changelist.tags[TAG_NO_IFTT]}"
                 )
@@ -65,6 +83,7 @@ class IfChangeThenChangeChecker :
             is Changelist.FileOperation.RemovedFile -> Path.of(file.name)
         }
         currentBlockTracked = false
+        currentFileBlockCount = 0
         return true
     }
 
@@ -73,11 +92,12 @@ class IfChangeThenChangeChecker :
         if (match != null) {
             val (ifChange, blockLabel, thenChange, targetLabel) = match.destructured
             if (ifChange == "IfChange") {
-                val label = if (blockLabel.isEmpty()) "" else ":$blockLabel"
+                val label = if (blockLabel.isEmpty()) ":@${currentFileBlockCount}" else ":$blockLabel"
                 val file = currentFile!!
                 val canonical = "//$file$label"
                 blockStack.addLast(canonical)
                 currentBlockTracked = false
+                currentFileBlockCount++
             } else if (thenChange == "ThenChange") {
                 val block = blockStack.removeLast()
                 val targetLabelParts = targetLabel.split(':')
@@ -90,18 +110,24 @@ class IfChangeThenChangeChecker :
                     currentFile!!.parent?.resolve(path)?.toString() ?: path
                 }
                 val label = if (targetLabelParts.size == 2) ":${targetLabelParts[1]}" else ""
-                needsChangedBlocks.getOrPut("//$file$label") {
-                    mutableSetOf()
-                }.apply {
-                    add(block)
+                if (changedBlockLocations.contains(block)) {
+                    needsChangedBlocks.getOrPut("//$file$label") {
+                        mutableSetOf()
+                    }.apply {
+                        add(block)
+                    }
                 }
             }
         } else if (modified && !currentBlockTracked) {
-            changedBlocks.add("//$currentFile")
+            changedBlockLocations.computeIfAbsent("//$currentFile") {
+                CheckResultMessage.Location(
+                    file = currentFile!!,
+                    startLine = line,
+                )
+            }
             if (blockStack.isNotEmpty()) {
-                changedBlocks.addAll(blockStack)
                 blockStack.forEach {
-                    blockToLocation.computeIfAbsent(it) {
+                    changedBlockLocations.computeIfAbsent(it) {
                         CheckResultMessage.Location(
                             file = currentFile!!,
                             startLine = line,
@@ -121,39 +147,44 @@ class IfChangeThenChangeChecker :
 
     override fun leaveChangelist(changelist: Changelist) {
         super.leaveChangelist(changelist)
-        changedBlocks.forEach {
-            needsChangedBlocks.remove(it)
-        }
-    }
 
-    fun getMissingChanges(): List<String> {
-        return needsChangedBlocks.keys.toList()
-    }
-
-    override fun getResults(): List<CheckResult> {
         val requesterToMissing = mutableMapOf<String, MutableSet<String>>()
-        needsChangedBlocks.forEach { entry ->
+        needsChangedBlocks.filter { !changedBlockLocations.contains(it.key) }.forEach { entry ->
             entry.value.forEach {
                 requesterToMissing.computeIfAbsent(it) {
                     mutableSetOf()
                 }.add(entry.key)
             }
         }
-        return results + requesterToMissing.map { entry ->
-            CheckResultMessage(
-                checkGroupId = ID,
-                title = "Missing Changes",
-                message = "The following locations should also be changed:\n  ${
-                    entry.value.joinToString("  \n")
-                }",
-                severity = CheckResultMessage.Severity.WARNING,
-                location = blockToLocation[entry.key]
+        requesterToMissing.forEach { entry ->
+            reporter?.report(
+                CheckResultMessage(
+                    checkGroupId = ID,
+                    title = "Missing Changes",
+                    message = "The following locations should also be changed:\n  ${
+                        entry.value.joinToString("  \n")
+                    }",
+                    severity = config.severity.toResultSeverity(),
+                    location = changedBlockLocations[entry.key]
+                )
             )
         }
     }
 
-    private companion object {
+    companion object {
         const val ID = "IfChangeThenChange"
-        const val TAG_NO_IFTT = "NO_IFTT"
+        private const val TAG_NO_IFTT = "NO_IFTT"
+
+        val PROVIDER = object : CheckerProvider {
+            override val id: String = ID
+
+            override fun newChecker(
+                config: JsonElement,
+            ): IfChangeThenChangeChecker {
+                return IfChangeThenChangeChecker(
+                    config = Json.decodeFromJsonElement(config),
+                )
+            }
+        }
     }
 }
