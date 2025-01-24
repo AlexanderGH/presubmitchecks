@@ -12,17 +12,27 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromStream
+import kotlinx.serialization.json.encodeToJsonElement
 import okhttp3.MediaType
 import okhttp3.OkHttpClient
 import org.undermined.presubmitchecks.checks.IfChangeThenChangeChecker
 import org.undermined.presubmitchecks.core.Changelist
 import org.undermined.presubmitchecks.core.ChangelistVisitor
+import org.undermined.presubmitchecks.core.CheckResult
 import org.undermined.presubmitchecks.core.CheckResultDebug
 import org.undermined.presubmitchecks.core.CheckResultMessage
 import org.undermined.presubmitchecks.core.CheckResultMessage.Severity
 import org.undermined.presubmitchecks.core.Checker
+import org.undermined.presubmitchecks.core.CheckerChangelistVisitorFactory
+import org.undermined.presubmitchecks.core.CheckerConfig
+import org.undermined.presubmitchecks.core.CheckerRegistry
+import org.undermined.presubmitchecks.core.CheckerReporter
+import org.undermined.presubmitchecks.core.CheckerService
+import org.undermined.presubmitchecks.core.CoreConfig
 import org.undermined.presubmitchecks.core.FileContents
+import org.undermined.presubmitchecks.core.runChecks
 import org.undermined.presubmitchecks.core.visit
 import org.undermined.presubmitchecks.git.GitChangelists
 import org.undermined.presubmitchecks.git.GitHubWorkflowCommands
@@ -40,7 +50,10 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
     val githubApiUrl by option(envvar = "GITHUB_API_URL").required()
     val githubRepoToken by option(envvar = "GITHUB_REPO_TOKEN").required()
     val githubEventPath by option(envvar = "GITHUB_EVENT_PATH").required()
-    val failOnWarnings by option(envvar = "INPUT_FAIL_ON_WARNINGS").boolean().default(false)
+    val config by option(envvar = "INPUT_CONFIG_FILE")
+    val fix by option(help="Apply fixes to any changed files.")
+        .boolean()
+        .default(false)
 
     @OptIn(ExperimentalSerializationApi::class)
     override suspend fun run() {
@@ -73,6 +86,7 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
         val changelist = Changelist(
             title = event.pull_request.title,
             description = event.pull_request.body ?: "",
+            patchOnly = false,
             files = changedFiles.map {
                 when (it.status) {
                     "added" -> Changelist.FileOperation.AddedFile(
@@ -132,51 +146,52 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
             }
         )
 
-        val checkers = mutableListOf<Checker>()
-        checkers.add(IfChangeThenChangeChecker())
-        try {
-            checkers.filterIsInstance<ChangelistVisitor>().takeIf { it.isNotEmpty() }?.let {
-                changelist.visit(it)
+        val globalConfig: CheckerService.GlobalConfig = config?.let { filePath ->
+            File(filePath).takeIf { it.exists() }?.inputStream()?.use {
+                Json.decodeFromStream(it)
             }
+        } ?: CheckerService.GlobalConfig()
+        val checkerService = CheckerRegistry.newServiceFromConfig(globalConfig)
+
+        var hasFailure = false
+
+        val reporter = object : CheckerReporter {
+            override fun report(result: CheckResult) {
+                when (result) {
+                    is CheckResultMessage -> {
+                        if (result.severity == Severity.ERROR) {
+                            hasFailure = true
+                        }
+                        val location = result.location
+                        GitHubWorkflowCommands.message(
+                            severity = result.severity,
+                            title = "${result.checkGroupId}: ${result.title}",
+                            message = result.message,
+                            file = location?.file.toString(),
+                            line = location?.startLine,
+                            endLine = location?.endLine,
+                            col = location?.startCol,
+                            endColumn = location?.endCol,
+                        )
+                    }
+
+                    is CheckResultDebug -> {
+                        GitHubWorkflowCommands.debug(result.message)
+                    }
+                }
+            }
+
+            override suspend fun flush() = Unit
+        }
+
+        try {
+            checkerService.runChecks(changelist, reporter)
+            reporter.flush()
         } finally {
             okHttpClient.dispatcher().executorService().shutdown()
             okHttpClient.connectionPool().evictAll()
         }
 
-        var hasFailure = false
-        checkers.forEach { checker ->
-            val results = checker.getResults()
-            GitHubWorkflowCommands.group(checker.id) {
-                results.forEach {
-                    when (it) {
-                        is CheckResultMessage -> {
-                            if (
-                                it.severity == Severity.ERROR || (
-                                    it.severity == Severity.WARNING && failOnWarnings
-                                )
-                            ) {
-                                hasFailure = true
-                            }
-                            val location = it.location
-                            GitHubWorkflowCommands.message(
-                                severity = it.severity,
-                                title = "${it.checkGroupId}: ${it.title}",
-                                message = it.message,
-                                file = location?.file.toString(),
-                                line = location?.startLine,
-                                endLine = location?.endLine,
-                                col = location?.startCol,
-                                endColumn = location?.endCol,
-                            )
-                        }
-
-                        is CheckResultDebug -> {
-                            GitHubWorkflowCommands.debug(it.message)
-                        }
-                    }
-                }
-            }
-        }
         if (hasFailure) {
             throw CliktError(statusCode = 1)
         }

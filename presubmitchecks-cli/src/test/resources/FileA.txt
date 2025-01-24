@@ -1,5 +1,5 @@
 LINT.IfChange(a)
-
+a
 LINT.ThenChange(FileB.txt:a)
 
 LINT.IfChange(b)

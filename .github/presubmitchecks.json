@@ -1,0 +1,7 @@
+{
+  "checkerConfigs": {
+    "IfChangeThenChange": {
+      "severity": "ERROR"
+    }
+  }
+}

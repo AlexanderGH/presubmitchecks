@@ -4,6 +4,7 @@ data class Changelist(
     val title: String,
     val description: String,
     val files: Collection<FileOperation>,
+    val patchOnly: Boolean,
 ) {
     val tags: Map<String, String> by lazy {
         val tagRegex = """([A-Za-z0-9_]+)(?:=|: )(.*?)""".toRegex()
