@@ -1,0 +1,10 @@
+{
+  "checkerConfigs": {
+    "IfChangeThenChange": {
+      "severity": "WARNING"
+    },
+    "FileEndsInNewLine": {
+      "severity": "ERROR"
+    }
+  }
+}

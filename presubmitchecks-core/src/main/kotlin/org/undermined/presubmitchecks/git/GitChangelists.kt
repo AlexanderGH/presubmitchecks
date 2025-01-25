@@ -11,6 +11,8 @@ object GitChangelists {
 
         var oldFilename: String? = null
         var newFilename: String? = null
+        var oldRef: String? = null
+        var newRef: String? = null
         val currentPatchContent = StringBuilder()
 
         val nextFile = {
@@ -22,6 +24,8 @@ object GitChangelists {
                     localNewFilename,
                     beforeName = localOldFilename,
                     patchLines = parseFilePatch(localPatch),
+                    beforeRef = oldRef!!,
+                    afterRef = newRef!!,
                     afterRevision = FileContents.Text {
                         sequence {
                             File(localNewFilename).useLines {
@@ -31,18 +35,29 @@ object GitChangelists {
                     },
                 ))
             } else if (localNewFilename != null) {
-                fileDiffs.add(Changelist.FileOperation.AddedFile(localNewFilename, FileContents.Text {
-                    localPatch.lineSequence().filter {
-                        it.startsWith("+")
-                    }.map { it.substring(1) }
-                }))
+                fileDiffs.add(Changelist.FileOperation.AddedFile(
+                    localNewFilename,
+                    patchLines = parseFilePatch(localPatch),
+                    afterRef = newRef ?: "",
+                    FileContents.Text {
+                        localPatch.lineSequence().filter {
+                            it.startsWith("+")
+                        }.map { it.substring(1) }
+                    }))
             } else if (localOldFilename != null) {
-                fileDiffs.add(Changelist.FileOperation.RemovedFile(localOldFilename, FileContents.Text {
-                    localPatch.lineSequence().filter {
-                        it.startsWith("-")
-                    }.map { it.substring(1) }
-                }))
+                fileDiffs.add(Changelist.FileOperation.RemovedFile(
+                    localOldFilename,
+                    patchLines = parseFilePatch(localPatch),
+                    beforeRef = oldRef ?: "",
+                    FileContents.Text {
+                        localPatch.lineSequence().filter {
+                            it.startsWith("-")
+                        }.map { it.substring(1) }
+                    }
+                ))
             }
+            oldRef = null
+            newRef = null
             oldFilename = null
             newFilename = null
             currentPatchContent.clear()
@@ -71,8 +86,13 @@ object GitChangelists {
                 currentPatchContent.clear()
             } else if (line.startsWith("rename from ") || line.startsWith("new file ") || line.startsWith("deleted file ")) {
 
-            } else if (line == "\\ No newline at end of file" || line.startsWith("index ")) {
-
+            } else if (line == "\\ No newline at end of file") {
+                currentPatchContent.appendLine(line)
+            } else if (line.startsWith("index ")) {
+               line.split(" ")[1].split("..").let {
+                   oldRef = it[0]
+                   newRef = it[1]
+               }
             } else {
                 currentPatchContent.appendLine(line)
             }
@@ -125,6 +145,20 @@ object GitChangelists {
                     )
                 )
                 beforeLineNumber++
+                return@forEach
+            }
+            if (line == "\\ No newline at end of file") {
+                if (modifiedLines.isEmpty()) {
+                    modifiedLines.add(Changelist.PatchLine(
+                        Changelist.ChangeOperation.ADDED,
+                        0,
+                        "",
+                        false
+                    ))
+                } else {
+                    modifiedLines[modifiedLines.size - 1] =
+                        modifiedLines.last().copy(hasNewLine = false)
+                }
                 return@forEach
             }
         }
