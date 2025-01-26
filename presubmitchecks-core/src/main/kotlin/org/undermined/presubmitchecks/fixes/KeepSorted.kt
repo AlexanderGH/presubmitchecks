@@ -289,31 +289,47 @@ class KeepSorted {
 
         fun sorted(): Sequence<String> {
             return sequence {
-                val suffixInfo = if (groups.size > 1) {
-                    val nonEmptyEndings = groups.map {
-                        last(it)
-                    }.filter { it.isNotEmpty() }
-                    nonEmptyEndings.dropLast(1).reduce { a, b ->
-                        a.commonSuffixWith(b)
-                    }.let {
-                        globalConfig.commonSuffixes.firstOrNull { suffix -> it.endsWith(suffix) }
-                    }.takeIf { it in globalConfig.commonSuffixes }?.let {
-                        val lastItemHasSuffix = nonEmptyEndings.last().endsWith(it)
-                        fun (line: String, isLast: Boolean): String {
-                            return if (isLast) {
-                                if (!lastItemHasSuffix && line.endsWith(it)) {
-                                    line.removeSuffix(it)
-                                } else {
-                                    line
-                                }
-                            } else if (!line.endsWith(it)) {
-                                "$line$it"
-                            } else {
-                                line
-                            }
+                val suffixInfo = if (sectionConfig.maintainSuffixOrder != null) {
+                    val suffixes = mutableMapOf<Int, String>()
+                    val matcher = sectionConfig.maintainSuffixOrder
+                    groups.forEachIndexed { index, it ->
+                        val lastLine = last(it)
+                        val match = matcher.matcher(lastLine)
+                        if (match.find()) {
+                            suffixes[index] = match.group(1)
                         }
-                    } ?: fun(line: String, _: Boolean) = line
-                } else fun(line: String, _: Boolean) = line
+                    }
+                    fun(line: String, index: Int, _: Boolean): String {
+                        val match = matcher.matcher(line)
+                        return if (match.find() && suffixes.contains(index)) {
+                            match.replaceFirst("${suffixes[index] ?: ""}${match.group(2) ?: ""}")
+                        } else if (suffixes.contains(index)) {
+                            line + (suffixes[index] ?: "")
+                        } else {
+                            line
+                        }
+                    }
+                } else if (groups.count {
+                        last(it).endsWith(sectionConfig.maintainGroupSeparator)
+                    } == groups.size - 1) {
+                    // Google's keep-sorted behavior seems to always shuffle the "missing"
+                    // suffix to the end, even if the missing suffix was not at the end in the
+                    // original. This is likely so that you can always insert an unsuffixed
+                    // item at any position and end up with valid code. However, it's kind of
+                    // weird since if the list already had commas on all items, it makes sense
+                    // to just add it on the new item too, and if the last item didn't have a comma
+                    // it not becomes unclear at which % of groups having a comma we enable this
+                    // logic.
+                    fun(line: String, _: Int, isLast: Boolean) = if (isLast) {
+                        line.trim(sectionConfig.maintainGroupSeparator)
+                    } else if (!line.endsWith(sectionConfig.maintainGroupSeparator)) {
+                        line + sectionConfig.maintainGroupSeparator
+                    } else {
+                        line
+                    }
+                } else {
+                    fun(line: String, index: Int, _: Boolean) = line
+                }
 
                 sectionConfig.let {
                     println("Config: ${it} '${it.leadingWhiteSpace}' '${it.commentPrefix}'")
@@ -354,7 +370,7 @@ class KeepSorted {
                         groupSortKey.append(it.sortKey.comparisonValue)
                         forEachLine(it) { line, _, isLastInGroup ->
                             yield(if (isLastInGroup) {
-                                suffixInfo(line, isLast)
+                                suffixInfo(line, i, isLast)
                             } else {
                                 line
                             })
@@ -439,7 +455,9 @@ class KeepSorted {
         }
 
         fun first(group: GroupRecord): String = allLines[group.startContent]
-        fun last(group: GroupRecord): String = allLines[group.startContent]
+        fun last(group: GroupRecord): String = if (group.endContent > group.startComment) {
+            allLines[group.endContent - 1]
+        } else first(group)
 
         fun areEqual(a: GroupRecord, b: GroupRecord): Boolean {
             val la = a.endContent - a.startComment
@@ -450,6 +468,7 @@ class KeepSorted {
                 if (allLines[a.startComment + i] != allLines[b.startComment + i]) {
                     return false
                 }
+                // TODO: Handle sticky suffixes on the last line (ignore the positional sticky part)
             }
             return true
         }
@@ -517,6 +536,8 @@ data class KeepSortedSectionConfig(
     // Post
     val removeDuplicates: Boolean = true,
     val newlineSeparated: Boolean = false,
+    val maintainGroupSeparator: Char = ',',
+    val maintainSuffixOrder: Pattern? = null,
 ) {
     internal lateinit var leadingWhiteSpace: String
     internal lateinit var commentPrefix: String
@@ -620,7 +641,7 @@ data class KeepSortedSectionConfig(
                     "by_regex" -> config.copy(
                         byRegex = kotlin.runCatching {
                             parseStringList(configString, key).map { Pattern.compile(it) }
-                        }.onFailure { it.printStackTrace() }.getOrDefault(emptyList())
+                        }.onFailure { it.printStackTrace() }.getOrDefault(config.byRegex)
                     )
                     "ignore_prefixes" -> config.copy(
                         ignorePrefixes = parseStringList(configString, key).sortedByDescending { it.length }
@@ -630,6 +651,16 @@ data class KeepSortedSectionConfig(
                     )
                     "newline_separated" -> config.copy(
                         newlineSeparated = parseBool(configString, key)
+                    )
+                    "maintain_suffix_order" -> config.copy(
+                        maintainSuffixOrder = kotlin.runCatching {
+                            parseNoWhitespaceValue(configString, key)
+                                .takeIf { it.isNotEmpty() }?.let {
+                                    Pattern.compile("$it$")
+                                }
+                        }.onFailure {
+                            it.printStackTrace()
+                        }.getOrDefault(config.maintainSuffixOrder)
                     )
                     "template" -> {
                         val templateId = parseNoWhitespaceValue(configString, key)
