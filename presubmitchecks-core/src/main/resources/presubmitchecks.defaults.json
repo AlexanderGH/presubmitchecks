@@ -1,9 +1,12 @@
 {
   "checkerConfigs": {
+    "FileEndsInNewLine": {
+      "severity": "WARNING"
+    },
     "IfChangeThenChange": {
       "severity": "WARNING"
     },
-    "FileEndsInNewLine": {
+    "KeepSorted": {
       "severity": "WARNING"
     }
   }

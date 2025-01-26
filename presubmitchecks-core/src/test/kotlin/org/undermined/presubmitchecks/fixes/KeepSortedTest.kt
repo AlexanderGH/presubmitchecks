@@ -17,27 +17,27 @@ class KeepSortedTest {
 
     @Test
     fun testBasic() {
-        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("kt"))
+        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("test"))
         keepSorted.checkSorted(
             config,
             """
                 before
-            // keep-sorted start
+            // keep-sorted-test start
             
             b
             a
             c
-            // keep-sorted end
+            // keep-sorted-test end
             end
             """.trimIndent(),
             """
                 before
-            // keep-sorted start
+            // keep-sorted-test start
             
             a
             b
             c
-            // keep-sorted end
+            // keep-sorted-test end
             end
             """.trimIndent()
         )
@@ -45,85 +45,85 @@ class KeepSortedTest {
 
     @Test
     fun testWhitespace() {
-        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("kt"))
+        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("test"))
         keepSorted.checkSorted(
             config,
             """
-            // keep-sorted start
+            // keep-sorted-test start
                 b
               c
               a
-            // keep-sorted end
+            // keep-sorted-test end
             middle
-            // keep-sorted start
+            // keep-sorted-test start
                 b
             c
             a
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent(),
             """
-            // keep-sorted start
+            // keep-sorted-test start
                 b
               a
               c
-            // keep-sorted end
+            // keep-sorted-test end
             middle
-            // keep-sorted start
+            // keep-sorted-test start
                 b
             a
             c
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent()
         )
     }
 
     @Test
     fun testStickyComments() {
-        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("kt"))
+        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("test"))
         keepSorted.checkSorted(
             config,
             """
-            # keep-sorted start sticky_comments=no
+            # keep-sorted-test start sticky_comments=no
             # alice
             username: al1
             # bob
             username: bo2
             # charlie
             username: ch3
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent(),
             """
-            # keep-sorted start sticky_comments=no
+            # keep-sorted-test start sticky_comments=no
             # alice
             # bob
             # charlie
             username: al1
             username: bo2
             username: ch3
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent()
         )
         keepSorted.checkSorted(
             config,
             """
-            # keep-sorted start sticky_comments=yes
+            # keep-sorted-test start sticky_comments=yes
             # alice
             username: al1
             # bob
             username: bo2
             # charlie
             username: ch3
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent(),
             """
-            # keep-sorted start sticky_comments=yes
+            # keep-sorted-test start sticky_comments=yes
             # alice
             username: al1
             # bob
             username: bo2
             # charlie
             username: ch3
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent()
         )
     }
@@ -131,7 +131,7 @@ class KeepSortedTest {
     @Test
     fun testBlockAndTemplate() {
         val config = KeepSortedConfig(
-            matchRegexp = KeepSortedConfig.pattern("kt"),
+            matchRegexp = KeepSortedConfig.pattern("test"),
             templates = mapOf(
                 "gradle.kts" to KeepSortedSectionConfig(
                     block = true
@@ -141,7 +141,7 @@ class KeepSortedTest {
         keepSorted.checkSorted(
             config,
             """
-            // keep-sorted start template=gradle.kts
+            // keep-sorted-test start template=gradle.kts
             implementation(b.c) {
                 because("c")
             }
@@ -151,10 +151,10 @@ class KeepSortedTest {
             implementation(a.b) {
                 because("b")
             }
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent(),
             """
-            // keep-sorted start template=gradle.kts
+            // keep-sorted-test start template=gradle.kts
             implementation(a.a) {
                 because("a")
             }
@@ -164,130 +164,130 @@ class KeepSortedTest {
             implementation(b.c) {
                 because("c")
             }
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent()
         )
     }
 
     @Test
     fun testGroup() {
-        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("kt"))
+        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("test"))
         keepSorted.checkSorted(
             config,
             """
-            // keep-sorted start group=yes
+            // keep-sorted-test start group=yes
             private final Bar bar;
             private final Baz baz =
                 new Baz()
             private final Foo foo;
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent(),
             """
-            // keep-sorted start group=yes
+            // keep-sorted-test start group=yes
             private final Bar bar;
             private final Baz baz =
                 new Baz()
             private final Foo foo;
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent()
         )
         keepSorted.checkSorted(
             config,
             """
-            // keep-sorted start group=no
+            // keep-sorted-test start group=no
             private final Bar bar;
             private final Baz baz =
                 new Baz()
             private final Foo foo;
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent(),
             """
-            // keep-sorted start group=no
+            // keep-sorted-test start group=no
                 new Baz()
             private final Bar bar;
             private final Baz baz =
             private final Foo foo;
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent()
         )
     }
 
     @Test
     fun testRemoveDuplicates() {
-        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("kt"))
+        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("test"))
         keepSorted.checkSorted(
             config,
             """
-            # keep-sorted start remove_duplicates=yes
+            # keep-sorted-test start remove_duplicates=yes
             rotation: bar
             rotation: bar
             rotation: baz
             rotation: foo
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent(),
             """
-            # keep-sorted start remove_duplicates=yes
+            # keep-sorted-test start remove_duplicates=yes
             rotation: bar
             rotation: baz
             rotation: foo
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent()
         )
         keepSorted.checkSorted(
             config,
             """
-            # keep-sorted start remove_duplicates=no
+            # keep-sorted-test start remove_duplicates=no
             rotation: bar
             rotation: bar
             rotation: baz
             rotation: foo
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent(),
             """
-            # keep-sorted start remove_duplicates=no
+            # keep-sorted-test start remove_duplicates=no
             rotation: bar
             rotation: bar
             rotation: baz
             rotation: foo
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent()
         )
     }
 
     @Test
     fun testNewlineSeparated() {
-        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("kt"))
+        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("test"))
         keepSorted.checkSorted(
             config,
             """
-            # keep-sorted start
+            # keep-sorted-test start
             Apples
             Bananas
             Oranges
             Pineapples
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent(),
             """
-            # keep-sorted start
+            # keep-sorted-test start
             Apples
             Bananas
             Oranges
             Pineapples
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent()
         )
         keepSorted.checkSorted(
             config,
             """
-            # keep-sorted start newline_separated=yes
+            # keep-sorted-test start newline_separated=yes
             Apples
             Bananas
             Oranges
             Pineapples
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent(),
             """
-            # keep-sorted start newline_separated=yes
+            # keep-sorted-test start newline_separated=yes
             Apples
             
             Bananas
@@ -295,97 +295,97 @@ class KeepSortedTest {
             Oranges
             
             Pineapples
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent()
         )
     }
 
     @Test
     fun testSkipLines() {
-        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("kt"))
+        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("test"))
         keepSorted.checkSorted(
             config,
             """
-            # keep-sorted start skip_lines=2
+            # keep-sorted-test start skip_lines=2
             Name    | Value
             ------- | -----
             Charlie | Baz
             Delta   | Qux
             Bravo   | Bar
             Alpha   | Foo
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent(),
             """
-            # keep-sorted start skip_lines=2
+            # keep-sorted-test start skip_lines=2
             Name    | Value
             ------- | -----
             Alpha   | Foo
             Bravo   | Bar
             Charlie | Baz
             Delta   | Qux
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent()
         )
     }
 
     @Test
     fun testCase() {
-        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("kt"))
+        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("test"))
         keepSorted.checkSorted(
             config,
             """
-            # keep-sorted start case=yes
+            # keep-sorted-test start case=yes
             Bravo
             Delta
             Foxtrot
             alpha
             charlie
             echo
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent(),
             """
-            # keep-sorted start case=yes
+            # keep-sorted-test start case=yes
             Bravo
             Delta
             Foxtrot
             alpha
             charlie
             echo
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent()
         )
         keepSorted.checkSorted(
             config,
             """
-            # keep-sorted start case=no
+            # keep-sorted-test start case=no
             Bravo
             Delta
             Foxtrot
             alpha
             charlie
             echo
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent(),
             """
-            # keep-sorted start case=no
+            # keep-sorted-test start case=no
             alpha
             Bravo
             charlie
             Delta
             echo
             Foxtrot
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent()
         )
     }
 
     @Test
     fun testGroupPrefixes() {
-        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("kt"))
+        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("test"))
         keepSorted.checkSorted(
             config,
             """
-            # keep-sorted start group_prefixes=and,with
+            # keep-sorted-test start group_prefixes=and,with
             spaghetti
             with meatballs
             peanut butter
@@ -393,10 +393,10 @@ class KeepSortedTest {
             hamburger
             with lettuce
             and tomatoes
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent(),
             """
-            # keep-sorted start group_prefixes=and,with
+            # keep-sorted-test start group_prefixes=and,with
             hamburger
             with lettuce
             and tomatoes
@@ -404,13 +404,13 @@ class KeepSortedTest {
             and jelly
             spaghetti
             with meatballs
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent()
         )
         keepSorted.checkSorted(
             config,
             """
-            # keep-sorted start group_prefixes=["and", "with"]
+            # keep-sorted-test start group_prefixes=["and", "with"]
             spaghetti
             with meatballs
             peanut butter
@@ -418,10 +418,10 @@ class KeepSortedTest {
             hamburger
             with lettuce
             and tomatoes
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent(),
             """
-            # keep-sorted start group_prefixes=["and", "with"]
+            # keep-sorted-test start group_prefixes=["and", "with"]
             hamburger
             with lettuce
             and tomatoes
@@ -429,129 +429,138 @@ class KeepSortedTest {
             and jelly
             spaghetti
             with meatballs
-            # keep-sorted end
+            # keep-sorted-test end
             """.trimIndent()
         )
     }
 
     @Test
     fun testIgnorePrefixes() {
-        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("kt"))
+        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("test"))
         keepSorted.checkSorted(
             config,
             """
-            // keep-sorted start ignore_prefixes=fs.setBoolFlag,fs.setIntFlag
+            // keep-sorted-test start ignore_prefixes=fs.setBoolFlag,fs.setIntFlag
             fs.setBoolFlag("paws_with_cute_toebeans", true)
             fs.setBoolFlag("whiskered_adorable_dog", true)
             fs.setIntFlag("pretty_whiskered_kitten", 6)
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent(),
             """
-            // keep-sorted start ignore_prefixes=fs.setBoolFlag,fs.setIntFlag
+            // keep-sorted-test start ignore_prefixes=fs.setBoolFlag,fs.setIntFlag
             fs.setBoolFlag("paws_with_cute_toebeans", true)
             fs.setIntFlag("pretty_whiskered_kitten", 6)
             fs.setBoolFlag("whiskered_adorable_dog", true)
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent()
         )
     }
 
     @Test
     fun testTrailingCommas() {
-        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("kt"))
+        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("test"))
         keepSorted.checkSorted(
             config,
             """
-            // keep-sorted start
+            // keep-sorted-test start
             c,
             b,
             a
-            // keep-sorted end
+            // keep-sorted-test end
+            // keep-sorted-test start
+            ".java",
+
+            ".yml",
+            // keep-sorted-test end
             """.trimIndent(),
             """
-            // keep-sorted start
+            // keep-sorted-test start
             a,
             b,
             c
-            // keep-sorted end
+            // keep-sorted-test end
+            // keep-sorted-test start
+            ".java",
+            ".yml",
+            // keep-sorted-test end
             """.trimIndent()
         )
     }
 
     @Test
     fun testPrefixOrder() {
-        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("kt"))
+        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("test"))
         keepSorted.checkSorted(
             config,
             """
-            // keep-sorted start prefix_order=INIT_,,FINAL_
+            // keep-sorted-test start prefix_order=INIT_,,FINAL_
             DO_SOMETHING_WITH_BAR
             DO_SOMETHING_WITH_FOO
             FINAL_BAR
             FINAL_FOO
             INIT_BAR
             INIT_FOO
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent(),
             """
-            // keep-sorted start prefix_order=INIT_,,FINAL_
+            // keep-sorted-test start prefix_order=INIT_,,FINAL_
             INIT_BAR
             INIT_FOO
             DO_SOMETHING_WITH_BAR
             DO_SOMETHING_WITH_FOO
             FINAL_BAR
             FINAL_FOO
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent()
         )
     }
 
     @Test
     fun testByRegex() {
-        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("kt"))
+        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("test"))
         keepSorted.checkSorted(
             config,
             """
-            // keep-sorted start by_regex=\w+;
+            // keep-sorted-test start by_regex=\w+;
             List<String> foo;
             Object baz;
             String bar;
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent(),
             """
-            // keep-sorted start by_regex=\w+;
+            // keep-sorted-test start by_regex=\w+;
             String bar;
             Object baz;
             List<String> foo;
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent()
         )
         keepSorted.checkSorted(
             config,
             """
-            // keep-sorted start by_regex=\w+; prefix_order=foo
+            // keep-sorted-test start by_regex=\w+; prefix_order=foo
             List<String> foo;
             Object baz;
             String bar;
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent(),
             """
-            // keep-sorted start by_regex=\w+; prefix_order=foo
+            // keep-sorted-test start by_regex=\w+; prefix_order=foo
             List<String> foo;
             String bar;
             Object baz;
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent()
         )
     }
 
     @Test
     fun testNumeric() {
-        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("kt"))
+        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("test"))
         keepSorted.checkSorted(
             config,
             """
-            // keep-sorted start numeric=yes
+            // keep-sorted-test start numeric=yes
             FOO_100
             FOO_2
             FOO_3
@@ -560,10 +569,10 @@ class KeepSortedTest {
             BAR_10
             BAR_00000000000000000000000000000000000000000000009
             BAR_99999999999999999999999999999999999999999999999
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent(),
             """
-            // keep-sorted start numeric=yes
+            // keep-sorted-test start numeric=yes
             BAR_1
             BAR_2
             BAR_00000000000000000000000000000000000000000000009
@@ -572,14 +581,14 @@ class KeepSortedTest {
             FOO_2
             FOO_3
             FOO_100
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent()
         )
         keepSorted.checkSorted(
             config,
             """
             deployment_state = [
-              // keep-sorted start numeric=yes prefix_order=INIT,ROLLOUT,COMPLETE
+              // keep-sorted-test start numeric=yes prefix_order=INIT,ROLLOUT,COMPLETE
               // All done.
               COMPLETE,
               // Start initialisation
@@ -595,12 +604,12 @@ class KeepSortedTest {
               ROLLOUT_10,
               ROLLOUT_5,
               ROLLOUT_50,
-              // keep-sorted end
+              // keep-sorted-test end
             ]
             """.trimIndent(),
             """
             deployment_state = [
-              // keep-sorted start numeric=yes prefix_order=INIT,ROLLOUT,COMPLETE
+              // keep-sorted-test start numeric=yes prefix_order=INIT,ROLLOUT,COMPLETE
               // Start initialisation
               INIT_1,
               INIT_5,
@@ -616,7 +625,7 @@ class KeepSortedTest {
               ROLLOUT_100,
               // All done.
               COMPLETE,
-              // keep-sorted end
+              // keep-sorted-test end
             ]
             """.trimIndent()
         )
@@ -624,7 +633,7 @@ class KeepSortedTest {
             config,
             """
             droid_components = [
-              // keep-sorted start numeric=yes prefix_order=R2,C3
+              // keep-sorted-test start numeric=yes prefix_order=R2,C3
               C3PO_HEAD,
               C3PO_ARM_L,
               R4_MOTIVATOR,
@@ -632,12 +641,12 @@ class KeepSortedTest {
               R2D2_BOLTS_10_MM,
               R2D2_PROJECTOR,
               R2D2_BOLTS_5_MM,
-              // keep-sorted end
+              // keep-sorted-test end
             ]
             """.trimIndent(),
             """
             droid_components = [
-              // keep-sorted start numeric=yes prefix_order=R2,C3
+              // keep-sorted-test start numeric=yes prefix_order=R2,C3
               R2D2_BOLTS_5_MM,
               R2D2_BOLTS_10_MM,
               R2D2_PROJECTOR,
@@ -645,7 +654,7 @@ class KeepSortedTest {
               C3PO_ARM_R,
               C3PO_HEAD,
               R4_MOTIVATOR,
-              // keep-sorted end
+              // keep-sorted-test end
             ]
             """.trimIndent()
         )
@@ -653,11 +662,11 @@ class KeepSortedTest {
 
     @Test
     fun testMaintainSuffix() {
-        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("kt"))
+        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("test"))
         keepSorted.checkSorted(
             config,
             """
-            // keep-sorted start maintain_suffix_order=(,)?(\s*(?://.*?|\/\*.*?|))
+            // keep-sorted-test start maintain_suffix_order=(,)?(\s*(?://.*?|\/\*.*?|))
             C, // bob
             C, /* haha */
             1,
@@ -667,10 +676,10 @@ class KeepSortedTest {
             B, // lol
             1,
             A
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent(),
             """
-            // keep-sorted start maintain_suffix_order=(,)?(\s*(?://.*?|\/\*.*?|))
+            // keep-sorted-test start maintain_suffix_order=(,)?(\s*(?://.*?|\/\*.*?|))
             1,
             A,
             B,
@@ -679,34 +688,34 @@ class KeepSortedTest {
             C, // bob
             D
               D // :)
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent()
         )
         keepSorted.checkSorted(
             config,
             """
-            // keep-sorted start
+            // keep-sorted-test start
             1,
             3, // three
             2
-            // keep-sorted end
-            // keep-sorted start
+            // keep-sorted-test end
+            // keep-sorted-test start
             1,
             3,
             2 // two
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent(),
             """
-            // keep-sorted start
+            // keep-sorted-test start
             1,
             2
             3, // three
-            // keep-sorted end
-            // keep-sorted start
+            // keep-sorted-test end
+            // keep-sorted-test start
             1,
             2 // two,
             3
-            // keep-sorted end
+            // keep-sorted-test end
             """.trimIndent()
         )
     }

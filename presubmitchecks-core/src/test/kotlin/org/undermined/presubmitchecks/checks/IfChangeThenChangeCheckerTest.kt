@@ -1,26 +1,14 @@
 package org.undermined.presubmitchecks.checks
 
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.encodeToJsonElement
-import kotlinx.serialization.json.jsonObject
 import org.junit.jupiter.api.Test
 import org.undermined.presubmitchecks.core.Changelist
-import org.undermined.presubmitchecks.core.ChangelistVisitor
 import org.undermined.presubmitchecks.core.CheckResultMessage
-import org.undermined.presubmitchecks.core.CheckerConfig
-import org.undermined.presubmitchecks.core.CoreConfig
-import org.undermined.presubmitchecks.core.FileContents
-import org.undermined.presubmitchecks.core.visit
-import org.undermined.presubmitchecks.git.GitChangelists.parseFilePatch
 import strikt.api.expectThat
-import strikt.assertions.contains
-import strikt.assertions.containsExactly
 import strikt.assertions.filterIsInstance
 import strikt.assertions.hasSize
 import strikt.assertions.isEmpty
 import strikt.assertions.isEqualTo
-import strikt.assertions.single
 import strikt.assertions.withSingle
 
 internal class IfChangeThenChangeCheckerTest {
@@ -29,31 +17,31 @@ internal class IfChangeThenChangeCheckerTest {
         private const val LINT_TC = "LINT.${""}ThenChange"
     }
 
+    val testRepository = CheckerTests.TestRepository()
+
     @Test
     fun testNoBlocks() {
+        testRepository.files["foo.txt:1"] = """
+            foo
+            bar
+        """.trimIndent()
+
         val changelist = Changelist(
             title = "",
             description = "",
-            patchOnly = false,
             files = listOf(
                 Changelist.FileOperation.AddedFile(
                     name = "foo.txt",
                     patchLines = emptyList(),
-                    afterRef = "",
-                    afterRevision = FileContents.Text(
-                        suspend {
-                            """
-                            foo
-                            bar
-                            """.trimIndent().lineSequence()
-                        }
-                    )
+                    afterRef = "1",
+                    isBinary = false,
                 )
             ),
         )
 
         runBlocking {
             val reporter = CheckerTests.runChecker(
+                testRepository,
                 changelist,
                 IfChangeThenChangeChecker.PROVIDER
             )
@@ -63,48 +51,43 @@ internal class IfChangeThenChangeCheckerTest {
 
     @Test
     fun testReciprocalBlockPass() {
+        testRepository.files["foo.txt:1"] = """
+            foo
+            $LINT_IC
+            bar
+            $LINT_TC(bar.txt)
+        """.trimIndent()
+        testRepository.files["bar.txt:2"] = """
+            $LINT_IC
+            baz
+            $LINT_TC(foo.txt)
+        """.trimIndent()
+
         val changelist = Changelist(
             title = "",
             description = "",
-            patchOnly = false,
             files = listOf(
                 Changelist.FileOperation.AddedFile(
                     name = "foo.txt",
                     patchLines = emptyList(),
-                    afterRef = "",
-                    afterRevision = FileContents.Text(
-                        suspend {
-                            """
-                            foo
-                            $LINT_IC
-                            bar
-                            $LINT_TC(bar.txt)
-                            """.trimIndent().lineSequence()
-                        }
-                    )
+                    afterRef = "1",
+                    isBinary = false,
                 ),
                 Changelist.FileOperation.ModifiedFile(
                     name = "bar.txt",
                     patchLines = listOf(
                         Changelist.PatchLine(Changelist.ChangeOperation.ADDED, 2, "baz")
                     ),
-                    beforeRef = "",
-                    afterRef = "",
-                    afterRevision = FileContents.Text(
-                        suspend {
-                            """
-                            $LINT_IC
-                            baz
-                            $LINT_TC(foo.txt)
-                            """.trimIndent().lineSequence()
-                        }
-                    )
+                    beforeRef = "1",
+                    afterRef = "2",
+                    isBinary = false,
                 )
             ),
         )
 
         runBlocking {
             val reporter = CheckerTests.runChecker(
+                testRepository,
                 changelist,
                 IfChangeThenChangeChecker.PROVIDER
             )
@@ -114,49 +97,43 @@ internal class IfChangeThenChangeCheckerTest {
 
     @Test
     fun testReciprocalBlockFail() {
+        testRepository.files["foo.txt:1"] = """
+            foo
+            $LINT_IC
+            bar
+            $LINT_TC(bar.txt:a)
+        """.trimIndent()
+        testRepository.files["bar.txt:2"] = """
+            $LINT_IC(a)
+            baz
+            $LINT_TC(foo.txt)
+            bob
+        """.trimIndent()
         val changelist = Changelist(
             title = "",
             description = "",
-            patchOnly = false,
             files = listOf(
                 Changelist.FileOperation.AddedFile(
                     name = "foo.txt",
                     patchLines = emptyList(),
-                    afterRef = "",
-                    afterRevision = FileContents.Text(
-                        suspend {
-                            """
-                            foo
-                            $LINT_IC
-                            bar
-                            $LINT_TC(bar.txt:a)
-                            """.trimIndent().lineSequence()
-                        }
-                    )
+                    afterRef = "1",
+                    isBinary = false,
                 ),
                 Changelist.FileOperation.ModifiedFile(
                     name = "bar.txt",
                     patchLines = listOf(
                         Changelist.PatchLine(Changelist.ChangeOperation.ADDED, 4, "bob")
                     ),
-                    beforeRef = "",
-                    afterRef = "",
-                    afterRevision = FileContents.Text(
-                        suspend {
-                            """
-                            $LINT_IC(a)
-                            baz
-                            $LINT_TC(foo.txt)
-                            bob
-                            """.trimIndent().lineSequence()
-                        }
-                    )
+                    beforeRef = "1",
+                    afterRef = "2",
+                    isBinary = false,
                 )
             )
         )
 
         runBlocking {
             val reporter = CheckerTests.runChecker(
+                testRepository,
                 changelist,
                 IfChangeThenChangeChecker.PROVIDER
             )
@@ -179,37 +156,34 @@ internal class IfChangeThenChangeCheckerTest {
 
     @Test
     fun testNamedModifiedUnnamedNot() {
+        testRepository.files["FileA.txt:2"] = """
+            $LINT_IC(a)
+            a
+            $LINT_TC(FileB.txt:a)
+            
+            $LINT_IC
+            
+            $LINT_TC(FileB.txt:c)
+        """.trimIndent()
         val changelist = Changelist(
             title = "",
             description = "",
-            patchOnly = false,
             files = listOf(
                 Changelist.FileOperation.ModifiedFile(
                     name = "FileA.txt",
                     patchLines = listOf(
                         Changelist.PatchLine(Changelist.ChangeOperation.ADDED, 2, "bob")
                     ),
-                    beforeRef = "",
-                    afterRef = "",
-                    afterRevision = FileContents.Text(
-                        suspend {
-                            """
-                            $LINT_IC(a)
-                            a
-                            $LINT_TC(FileB.txt:a)
-                            
-                            $LINT_IC
-                            
-                            $LINT_TC(FileB.txt:c)
-                            """.trimIndent().lineSequence()
-                        }
-                    )
+                    beforeRef = "1",
+                    afterRef = "2",
+                    isBinary = false,
                 )
             )
         )
 
         runBlocking {
             val reporter = CheckerTests.runChecker(
+                testRepository,
                 changelist,
                 IfChangeThenChangeChecker.PROVIDER
             )

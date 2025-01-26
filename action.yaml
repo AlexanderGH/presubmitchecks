@@ -9,6 +9,14 @@ inputs:
   config-file:
     description: Path to the presubmit checks config file.
     required: false
+  apply-fixes:
+    description: Applies fixes automatically.
+    required: false
+    default: "false"
+outputs:
+  applied-fixes:
+    description: "Set to 1 if fixes were applied"
+    value: ${{ steps.presubmitchecks.outputs.APPLIED_FIXES }}
 
 runs:
   using: "composite"
@@ -24,6 +32,8 @@ runs:
       shell: bash
     - run: $GITHUB_ACTION_PATH/presubmitchecks-cli/build/install/presubmitchecks-cli/bin/presubmitchecks-cli github-action
       shell: bash
+      id: presubmitchecks
       env:
         GITHUB_REPO_TOKEN: ${{ inputs.repo-token }}
         INPUT_CONFIG_FILE: ${{ inputs.config-file }}
+        INPUT_APPLY_FIXES: ${{ inputs.apply-fixes }}

@@ -1,5 +1,6 @@
 package org.undermined.presubmitchecks.git
 
+import org.undermined.presubmitchecks.core.LocalFilesystemRepository
 import org.undermined.presubmitchecks.core.Repository
 import java.io.File
 import java.io.IOException
@@ -7,49 +8,39 @@ import java.io.InputStream
 import java.io.OutputStream
 
 class GitLocalRepository(
-    root: File = File("."),
+    private val rootPath: File,
+    private val currentRef: Lazy<String>,
 ) : Repository, Repository.WritableRepository {
-    val rootPath = root.absoluteFile
     init {
         check(File(rootPath, ".git").exists()) {
             "$rootPath is not a git repository"
         }
     }
 
-    private val currentRef: String by lazy {
-        getGitRevision(rootPath) ?: error("Unable to get current repository revision")
-    }
+    private val localFilesystemRepository = LocalFilesystemRepository(rootPath)
 
     override suspend fun readFile(path: String, ref: String): InputStream {
-        return if (ref == currentRef || ref == "") {
-            File(rootPath, path).inputStream().buffered()
+        return if (ref == currentRef.value || ref == "") {
+            localFilesystemRepository.readFile(path, "")
         } else {
             ProcessBuilder(listOf("git", "show", "$ref:$path"))
                 .directory(rootPath)
                 .exec { it.inputStream.buffered() }
-                ?: throw IOException()
+                ?: throw IOException("$path @ $ref")
         }
     }
 
     override suspend fun writeFile(path: String, writer: (OutputStream) -> Unit) {
-        val targetFile = File(rootPath, path).absoluteFile
-        val tmpFile = File.createTempFile(targetFile.name, ".tmp", targetFile.parentFile)
-        tmpFile.outputStream().use {
-            writer(it)
-        }
-        if (!tmpFile.renameTo(targetFile)) {
-            tmpFile.delete()
-            throw IOException("Could not write: $path")
-        }
+        localFilesystemRepository.writeFile(path, writer)
     }
 
     companion object {
         fun getGitRevision(repoPath: File): String? {
             return ProcessBuilder("git", "rev-parse", "HEAD")
                 .directory(repoPath)
-                .exec {
-                    it.inputStream.bufferedReader().use {
-                        it.readLine()
+                .exec { process ->
+                    process.inputStream.bufferedReader().use { inputStream ->
+                        inputStream.readLine()
                     }
                 }
         }

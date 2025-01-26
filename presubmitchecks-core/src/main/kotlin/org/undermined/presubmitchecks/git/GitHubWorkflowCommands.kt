@@ -1,6 +1,7 @@
 package org.undermined.presubmitchecks.git
 
 import org.undermined.presubmitchecks.core.CheckResultMessage
+import java.io.File
 
 object GitHubWorkflowCommands {
     fun debug(message: String) {
@@ -40,6 +41,10 @@ object GitHubWorkflowCommands {
         } finally {
             command("endgroup")
         }
+    }
+
+    fun outputVar(key: String, value: String) {
+        File(System.getenv("GITHUB_OUTPUT")).appendText("$key=$value\n")
     }
 
     private fun command(

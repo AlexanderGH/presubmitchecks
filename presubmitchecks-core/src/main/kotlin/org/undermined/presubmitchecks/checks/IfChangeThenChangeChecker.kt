@@ -14,10 +14,13 @@ import org.undermined.presubmitchecks.core.CheckerChangelistVisitorFactory
 import org.undermined.presubmitchecks.core.CheckerProvider
 import org.undermined.presubmitchecks.core.CheckerReporter
 import org.undermined.presubmitchecks.core.CoreConfig
+import org.undermined.presubmitchecks.core.FileVisitors
 import org.undermined.presubmitchecks.core.Repository
 import org.undermined.presubmitchecks.core.toResultSeverity
 import java.nio.file.Path
 import java.util.Optional
+import kotlin.io.path.name
+import kotlin.io.path.pathString
 
 /**
  * https://www.chromium.org/chromium-os/developer-library/guides/development/keep-files-in-sync/
@@ -28,11 +31,12 @@ class IfChangeThenChangeChecker(
     Checker,
     CheckerChangelistVisitorFactory,
     ChangelistVisitor,
-    ChangelistVisitor.FileAfterVisitor
+    ChangelistVisitor.FileVisitor,
+    ChangelistVisitor.FileVisitor.FileAfterLineVisitor
 {
 
     private val ifChangeThenChange =
-        """[\s/#;<>\-]*LINT\.(?:(IfChange)(?:\(([a-z\-]+)\))?|(ThenChange)\(([^):]*(?::[a-z-]+)?)\))[\s/#;<>\-]*""".toRegex()
+        """[\s/#;<>\-]*LINT\.(?:(IfChange|Ignore)(?:\(([a-z\-]+|@ignore)\))?|(ThenChange)\(([^):]*(?::[a-z-]+)?)\))[\s/#;<>\-]*""".toRegex()
 
     /**
      * Key: The block id that is requested to have changes.
@@ -76,22 +80,24 @@ class IfChangeThenChangeChecker(
     }
 
     override fun enterFile(file: Changelist.FileOperation): Boolean {
-        super.enterFile(file)
-        currentFile = when (file) {
-            is Changelist.FileOperation.AddedFile -> Path.of(file.name)
-            is Changelist.FileOperation.ModifiedFile -> Path.of(file.name)
-            is Changelist.FileOperation.RemovedFile -> Path.of(file.name)
-        }
+        currentFile = Path.of(file.name)
         currentBlockTracked = false
         currentFileBlockCount = 0
-        return true
+        return file.isText
     }
 
-    override fun visitAfterLine(line: Int, content: String, modified: Boolean) {
-        val match = ifChangeThenChange.matchEntire(content)
+    override fun visitAfterLine(name: String, line: FileVisitors.FileLine): Boolean {
+        if (currentFile == null) {
+            return false
+        }
+        val match = ifChangeThenChange.matchEntire(line.content)
         if (match != null) {
             val (ifChange, blockLabel, thenChange, targetLabel) = match.destructured
             if (ifChange == "IfChange") {
+                if (blockLabel == "@ignore") {
+                    currentFile = null
+                    return false
+                }
                 val label = if (blockLabel.isEmpty()) ":@${currentFileBlockCount}" else ":$blockLabel"
                 val file = currentFile!!
                 val canonical = "//$file$label"
@@ -99,7 +105,22 @@ class IfChangeThenChangeChecker(
                 currentBlockTracked = false
                 currentFileBlockCount++
             } else if (thenChange == "ThenChange") {
-                val block = blockStack.removeLast()
+                val block = blockStack.removeLastOrNull()
+                if (block == null) {
+                    reporter?.report(
+                        CheckResultMessage(
+                            checkGroupId = ID,
+                            title = "Invalid Block",
+                            message = "No open block",
+                            severity = CheckResultMessage.Severity.ERROR,
+                            location = CheckResultMessage.Location(
+                                file = currentFile!!.pathString,
+                                startLine = line.line,
+                            ),
+                        )
+                    )
+                    return true
+                }
                 val targetLabelParts = targetLabel.split(':')
                 val path = targetLabelParts[0]
                 val file = if (path.startsWith("//")) {
@@ -118,30 +139,43 @@ class IfChangeThenChangeChecker(
                     }
                 }
             }
-        } else if (modified && !currentBlockTracked) {
+        } else if (line.isModified && !currentBlockTracked) {
             changedBlockLocations.computeIfAbsent("//$currentFile") {
                 CheckResultMessage.Location(
-                    file = currentFile!!,
-                    startLine = line,
+                    file = currentFile!!.pathString,
+                    startLine = line.line,
                 )
             }
             if (blockStack.isNotEmpty()) {
                 blockStack.forEach {
                     changedBlockLocations.computeIfAbsent(it) {
                         CheckResultMessage.Location(
-                            file = currentFile!!,
-                            startLine = line,
+                            file = currentFile!!.pathString,
+                            startLine = line.line,
                         )
                     }
                 }
             }
             currentBlockTracked = true
         }
+        return true
     }
 
     override fun leaveFile(file: Changelist.FileOperation) {
-        super.leaveFile(file)
-        check(blockStack.isEmpty()) { "Unclosed blocks: $blockStack" }
+        // check(blockStack.isEmpty()) { "Unclosed blocks: $blockStack" }
+        if (blockStack.isNotEmpty()) {
+            reporter?.report(
+                CheckResultMessage(
+                    checkGroupId = ID,
+                    title = "Invalid Block",
+                    message = "Unclosed blocks: $blockStack",
+                    severity = CheckResultMessage.Severity.ERROR,
+                    location = CheckResultMessage.Location(
+                        file = currentFile!!.pathString,
+                    ),
+                )
+            )
+        }
         currentFile = null
     }
 

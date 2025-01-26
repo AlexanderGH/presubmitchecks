@@ -28,7 +28,7 @@ data class CoreConfig(
 interface CheckerReporter {
     fun report(result: CheckResult)
 
-    suspend fun flush()
+    suspend fun flush() {}
 }
 
 interface CheckResult {
@@ -49,7 +49,7 @@ data class CheckResultMessage(
     val message: String,
     val severity: Severity = Severity.NOTE,
     val location: Location? = null,
-    val fix: FileFixFilter? = null,
+    val fix: CheckResultFix? = null,
 ): CheckResult {
     enum class Severity {
         NOTE,
@@ -58,7 +58,7 @@ data class CheckResultMessage(
     }
 
     data class Location(
-        val file: Path,
+        val file: String,
         val startLine: Int? = null,
         val startCol: Int? = null,
         val endLine: Int? = null,
@@ -78,6 +78,12 @@ data class CheckResultMessage(
     }
 }
 
+data class CheckResultFix(
+    val fixId: String,
+    val file: String,
+    val transform: FileFixFilter,
+): CheckResult
+
 fun CheckerConfig.CheckerMode.toResultSeverity(): CheckResultMessage.Severity = when (this) {
     CheckerConfig.CheckerMode.DISABLED -> error("Check is disabled")
     CheckerConfig.CheckerMode.NOTE -> CheckResultMessage.Severity.NOTE
@@ -96,7 +102,10 @@ interface CheckerChangelistVisitorFactory {
 suspend fun CheckerService.runChecks(repository: Repository, changelist: Changelist, reporter: CheckerReporter) {
     checkers.values.filterIsInstance<CheckerChangelistVisitorFactory>().map {
         it.newCheckVisitor(repository, changelist, reporter = reporter)
-    }.filter { it.isPresent }.map { it.get() }.takeIf { it.isNotEmpty() }?.let {
-        changelist.visit(it)
     }
+        .filter { it.isPresent }
+        .map { it.get() }
+        .takeIf { it.isNotEmpty() }?.let {
+            changelist.visit(repository, it)
+        }
 }

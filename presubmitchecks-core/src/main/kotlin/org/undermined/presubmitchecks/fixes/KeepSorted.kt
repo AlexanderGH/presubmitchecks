@@ -4,7 +4,6 @@ import com.google.re2j.Pattern
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
-import java.io.File
 import kotlin.math.min
 
 class KeepSorted {
@@ -116,28 +115,6 @@ class KeepSorted {
                     }
                 }
                 suffixes += allLines.size - commentStartLine
-                if (sectionConfig.removeDuplicates && groups.isNotEmpty()) {
-                    var suffixBlankLines = 0
-                    for (i in groups.size - 1 downTo 0) {
-                        if (groups[i].isOneLine && first(groups[i]).isBlank()) {
-                            suffixBlankLines++
-                            groups[i] = GroupRecord.NULL_GROUP_RECORD
-                        } else {
-                            break
-                        }
-                    }
-                    suffixes += suffixBlankLines
-                    var prefixBlankLines = 0
-                    for (i in 0 until suffixBlankLines) {
-                        if (groups[i].isOneLine && first(groups[i]).isBlank()) {
-                            prefixBlankLines++
-                            groups[i] = GroupRecord.NULL_GROUP_RECORD
-                        } else {
-                            break
-                        }
-                    }
-                    prefixes += prefixBlankLines.coerceAtMost(1)
-                }
             }
             suffixes++
             commentStartLine++
@@ -157,7 +134,13 @@ class KeepSorted {
                     lastBlankLines++
                     allLines.add(line)
                 } else {
+                    if (allLines.size == prefixes
+                        && (prefixes == 0 || allLines.last().isNotBlank())) {
+                        addPrefixLine(line);
+                        return
+                    }
                     processPendingState()
+                    lastBlankLines++
                     allLines.add(line)
                 }
                 return
@@ -331,12 +314,14 @@ class KeepSorted {
                     fun(line: String, index: Int, _: Boolean) = line
                 }
 
-                sectionConfig.let {
-                    println("Config: ${it} '${it.leadingWhiteSpace}' '${it.commentPrefix}'")
+                if (globalConfig.debug) {
+                    sectionConfig.let {
+                        println("Config: ${it} '${it.leadingWhiteSpace}' '${it.commentPrefix}'")
+                    }
+                    println("Sort Before: ${groups.map { it.sortKey }}")
                 }
 
                 val sorted = groups.toMutableList()
-                println("Sort Before: ${groups.map { it.sortKey }}")
                 sorted.sortWith { a, b ->
                     val prefixOrder = a.sortKey.prefixOrder.compareTo(b.sortKey.prefixOrder)
                     if (prefixOrder == 0) {
@@ -355,7 +340,9 @@ class KeepSorted {
                         }
                     }
                 }
-                println("Sort After: ${sorted.map { it.sortKey }}")
+                if (globalConfig.debug) {
+                    println("Sort After: ${sorted.map { it.sortKey }}")
+                }
 
                 groupSortKey.clear()
 
@@ -500,8 +487,8 @@ data class KeepSortedConfig(
         "\\" to "['\"\\\\]".toRegex(),
         "//" to ".*?$".toRegex(),
     ),
-    val commonSuffixes: Set<String> = setOf(","),
     val templates: Map<String, KeepSortedSectionConfig> = emptyMap(),
+    val debug: Boolean = false,
 ) {
     companion object {
         private val patterns = mutableMapOf<String, Lazy<Regex>>().apply {
