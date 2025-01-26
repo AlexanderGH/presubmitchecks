@@ -11,6 +11,10 @@ the current file) and an  optional label (if absent: the entire file), though at
 specified. Blocks may be nested, but start and end directives must be balanced.
 
 ```
+// Special syntax to disable procesing this lint in the rest of the file.
+// Useful for using the check string in things like documentation.
+// LINT.IfChange(@ignore)
+
 // Anonymous Block
 LINT.IfChange
 // Labeled Block
@@ -24,10 +28,10 @@ LINT.ThenChange(relative/path/to/file.txt)
 // Any change in the other file fulfills the requirement.
 LINT.ThenChange(//from/repo/root/file.txt)
 // A block in the same file.
-// Only changes in in that block fulfill the requirement.
+// Only changes in a block name "other-block-name" in the same file fulfill the requirement.
 LINT.ThenChange(:other-block-name)
 // You can also combine the two.
-// Only changes in a block names "other-block-name" in that file.txt fulfill the requirement.
+// Only changes in a block named "other-block-name" in file.txt fulfill the requirement.
 LINT.ThenChange(file.txt:other-block-name)
 ```
 

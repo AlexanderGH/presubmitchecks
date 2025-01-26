@@ -5,6 +5,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.decodeFromJsonElement
 import org.undermined.presubmitchecks.core.Changelist
 import org.undermined.presubmitchecks.core.ChangelistVisitor
+import org.undermined.presubmitchecks.core.CheckResultFix
 import org.undermined.presubmitchecks.core.CheckResultMessage
 import org.undermined.presubmitchecks.core.Checker
 import org.undermined.presubmitchecks.core.CheckerChangelistVisitorFactory
@@ -29,24 +30,21 @@ class FileEndsInNewLineChecker(
         changelist: Changelist,
         reporter: CheckerReporter
     ): Optional<ChangelistVisitor> {
-        return Optional.of(object : ChangelistVisitor {
+        return Optional.of(object : ChangelistVisitor, ChangelistVisitor.FileVisitor {
             override fun enterFile(file: Changelist.FileOperation): Boolean {
-                val filename = when (file) {
-                    is Changelist.FileOperation.AddedFile -> file.name
-                    is Changelist.FileOperation.ModifiedFile -> file.name
-                    is Changelist.FileOperation.RemovedFile -> null
-                } ?: return false
-                val shouldCheck = filename.split(".").let { parts ->
-                    (1..<parts.size).map { parts.subList(it, parts.size).joinToString(".") }
-                }.any { newLineFiles.contains(it) }
-                if (shouldCheck) {
+                if (file is Changelist.FileOperation.RemovedFile || file.isBinary) {
+                    return false
+                }
+                if (newLineFiles.any { file.name.endsWith(it) }) {
                     val lastLine = when (file) {
                         is Changelist.FileOperation.AddedFile -> file.patchLines.lastOrNull()
-                        is Changelist.FileOperation.ModifiedFile -> file.patchLines.lastOrNull()
+                        is Changelist.FileOperation.ModifiedFile -> file.patchLines.lastOrNull {
+                            it.operation == Changelist.ChangeOperation.ADDED
+                        }
                         else -> null
                     }
                     if (lastLine != null) {
-                        if (!lastLine.hasNewLine || lastLine.content == "") {
+                        if (!lastLine.hasNewLine) {
                             reporter.report(
                                 CheckResultMessage(
                                     checkGroupId = ID,
@@ -54,19 +52,26 @@ class FileEndsInNewLineChecker(
                                     title = "File Ending",
                                     message = "${file.name} must end in a single new line",
                                     location = CheckResultMessage.Location(
-                                        file = Path.of(file.name),
+                                        file = file.name,
                                         startLine = lastLine.line,
                                     ),
-                                    fix = ::autoFix
+                                    fix = CheckResultFix(
+                                        fixId = ID,
+                                        file = file.name,
+                                        transform = ::autoFix
+                                    ),
                                 )
                             )
+                            return false
                         }
                     }
                 }
-                return false
+                return true
             }
         })
     }
+
+    // TODO: verify there is only a single trailing line
 
     fun autoFix(inputStream: InputStream, outputStream: OutputStream): Boolean {
         val buffer = ByteArray(8192)

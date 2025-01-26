@@ -4,10 +4,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.decodeFromStream
-import kotlinx.serialization.json.encodeToJsonElement
-import kotlinx.serialization.json.jsonObject
 import org.undermined.presubmitchecks.checks.FileEndsInNewLineChecker
 import org.undermined.presubmitchecks.checks.IfChangeThenChangeChecker
+import org.undermined.presubmitchecks.checks.KeepSortedChecker
 
 class CheckerRegistry {
     companion object {
@@ -15,6 +14,7 @@ class CheckerRegistry {
             // keep-sorted start
             FileEndsInNewLineChecker.PROVIDER,
             IfChangeThenChangeChecker.PROVIDER,
+            KeepSortedChecker.PROVIDER,
             // keep-sorted end
         ).associateBy { it.id }
 
@@ -43,6 +43,19 @@ class CheckerService(
 
     @Serializable
     data class GlobalConfig(
+        val textFiles: List<String> = listOf(
+            // keep-sorted start
+            ".java",
+            ".json",
+            ".kt",
+            ".kts",
+            ".md",
+            ".txt",
+            ".yaml",
+            ".yml",
+            // keep-sorted end
+        ),
+
         val checkerConfigs: Map<String, JsonElement> = emptyMap()
     )
 }

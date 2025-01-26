@@ -4,12 +4,18 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   checks:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -19,10 +25,27 @@ jobs:
         with:
           cache-read-only: false
           cache-encryption-key: ${{ secrets.GradleEncryptionKey }}
-      - run: ./gradlew check
-        shell: bash
       - name: Run Presubmit Checks
         uses: './'
+        id: presubmitchecks
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           config-file: .github/presubmitchecks.json
+          apply-fixes: "true"
+      - run: ./gradlew check
+        shell: bash
+
+#      - name: Commit Fixes
+#        if: false && steps.presubmitchecks.outputs.applied-fixes == '1'
+#        run: |
+#          git config user.name "github-actions[bot]"
+#          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+#          git add .
+#          git commit -m "Presubmit Fixes"
+#          git push
+#        shell: bash
+#      - uses: parkerbxyz/suggest-changes@v1
+#        if: steps.presubmitchecks.outputs.applied-fixes == '1'
+#        with:
+#          comment: 'Please commit the suggested changes.'
+#          event: 'COMMENT'

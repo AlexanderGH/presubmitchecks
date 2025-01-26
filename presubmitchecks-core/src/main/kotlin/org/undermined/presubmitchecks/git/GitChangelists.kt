@@ -1,7 +1,6 @@
 package org.undermined.presubmitchecks.git
 
 import org.undermined.presubmitchecks.core.Changelist
-import org.undermined.presubmitchecks.core.FileContents
 import java.io.File
 
 object GitChangelists {
@@ -13,6 +12,7 @@ object GitChangelists {
         var newFilename: String? = null
         var oldRef: String? = null
         var newRef: String? = null
+        var isBinary = false
         val currentPatchContent = StringBuilder()
 
         val nextFile = {
@@ -26,36 +26,24 @@ object GitChangelists {
                     patchLines = parseFilePatch(localPatch),
                     beforeRef = oldRef!!,
                     afterRef = newRef!!,
-                    afterRevision = FileContents.Text {
-                        sequence {
-                            File(localNewFilename).useLines {
-                                yieldAll(it)
-                            }
-                        }
-                    },
+                    isBinary = isBinary,
                 ))
             } else if (localNewFilename != null) {
                 fileDiffs.add(Changelist.FileOperation.AddedFile(
                     localNewFilename,
                     patchLines = parseFilePatch(localPatch),
                     afterRef = newRef ?: "",
-                    FileContents.Text {
-                        localPatch.lineSequence().filter {
-                            it.startsWith("+")
-                        }.map { it.substring(1) }
-                    }))
+                    isBinary = isBinary,
+                ))
             } else if (localOldFilename != null) {
                 fileDiffs.add(Changelist.FileOperation.RemovedFile(
                     localOldFilename,
                     patchLines = parseFilePatch(localPatch),
                     beforeRef = oldRef ?: "",
-                    FileContents.Text {
-                        localPatch.lineSequence().filter {
-                            it.startsWith("-")
-                        }.map { it.substring(1) }
-                    }
+                    isBinary = isBinary,
                 ))
             }
+            isBinary = false
             oldRef = null
             newRef = null
             oldFilename = null
@@ -89,10 +77,12 @@ object GitChangelists {
             } else if (line == "\\ No newline at end of file") {
                 currentPatchContent.appendLine(line)
             } else if (line.startsWith("index ")) {
-               line.split(" ")[1].split("..").let {
-                   oldRef = it[0]
-                   newRef = it[1]
-               }
+                line.split(" ")[1].split("..").let {
+                    oldRef = it[0]
+                    newRef = it[1]
+                }
+            } else if (line.startsWith("Binary files ")) {
+                isBinary = true
             } else {
                 currentPatchContent.appendLine(line)
             }
@@ -121,6 +111,15 @@ object GitChangelists {
             }
             if (line.startsWith(" ")) {
                 // Context
+                /*
+                modifiedLines.add(
+                    Changelist.PatchLine(
+                        Changelist.ChangeOperation.CONTEXT,
+                        beforeLineNumber,
+                        content = line.substring(1),
+                    )
+                )
+                */
                 beforeLineNumber++
                 afterLineNumber++
                 return@forEach

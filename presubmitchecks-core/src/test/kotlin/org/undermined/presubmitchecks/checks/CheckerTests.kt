@@ -17,25 +17,29 @@ import java.io.InputStream
 
 internal object CheckerTests {
     suspend fun runChecker(
+        repository: Repository,
         changelist: Changelist,
         checkerProvider: CheckerProvider,
         checkerConfig: JsonElement = Json.encodeToJsonElement(
             CoreConfig(severity = CheckerConfig.CheckerMode.ERROR)
         ),
     ): TestCheckerResultReporter {
-        val repository = object : Repository {
-            override suspend fun readFile(path: String, ref: String): InputStream {
-                return ByteArrayInputStream(ByteArray(0))
-            }
-        }
         val reporter = TestCheckerResultReporter()
         val checker = checkerProvider.newChecker(checkerConfig)
         val checkers = listOf(checker).filterIsInstance<CheckerChangelistVisitorFactory>().map {
             it.newCheckVisitor(repository, changelist, reporter = reporter)
         }.filter { it.isPresent }.map { it.get() }
-        changelist.visit(checkers)
+        changelist.visit(repository, checkers)
         reporter.flush()
         return reporter
+    }
+
+    class TestRepository : Repository {
+        val files = mutableMapOf<String, String>()
+
+        override suspend fun readFile(path: String, ref: String): InputStream {
+            return ByteArrayInputStream(files.getValue("$path:$ref").toByteArray())
+        }
     }
 
     class TestCheckerResultReporter : CheckerReporter {

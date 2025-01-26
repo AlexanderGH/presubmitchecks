@@ -4,7 +4,6 @@ data class Changelist(
     val title: String,
     val description: String,
     val files: Collection<FileOperation>,
-    val patchOnly: Boolean,
 ) {
     val tags: Map<String, String> by lazy {
         val tagRegex = """([A-Za-z0-9_]+)(?:=|: )(.*?)""".toRegex()
@@ -18,19 +17,21 @@ data class Changelist(
 
     sealed interface FileOperation {
         val name: String
+        val isBinary: Boolean
+        val isText: Boolean get() = !isBinary
 
         data class AddedFile(
             override val name: String,
             val patchLines: Collection<PatchLine>,
             val afterRef: String,
-            val afterRevision: FileContents,
+            override val isBinary: Boolean,
         ) : FileOperation
 
         data class RemovedFile(
             override val name: String,
             val patchLines: Collection<PatchLine>,
             val beforeRef: String,
-            val beforeRevision: FileContents,
+            override val isBinary: Boolean,
         ) : FileOperation
 
         data class ModifiedFile(
@@ -39,8 +40,7 @@ data class Changelist(
             val patchLines: Collection<PatchLine>,
             val beforeRef: String,
             val afterRef: String,
-            val afterRevision: FileContents,
-            val beforeRevision: FileContents = afterRevision.reversePatch(patchLines),
+            override val isBinary: Boolean,
         ) : FileOperation
     }
 
@@ -54,5 +54,6 @@ data class Changelist(
     enum class ChangeOperation {
         ADDED,
         REMOVED,
+        CONTEXT
     }
 }

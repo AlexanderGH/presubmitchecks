@@ -4,8 +4,10 @@ import com.github.ajalt.clikt.command.SuspendingCliktCommand
 import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
+import com.github.ajalt.clikt.parameters.options.optionalValue
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.boolean
+import com.github.ajalt.clikt.parameters.types.choice
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.withContext
@@ -22,6 +24,7 @@ import org.undermined.presubmitchecks.core.Changelist
 import org.undermined.presubmitchecks.core.ChangelistVisitor
 import org.undermined.presubmitchecks.core.CheckResult
 import org.undermined.presubmitchecks.core.CheckResultDebug
+import org.undermined.presubmitchecks.core.CheckResultFix
 import org.undermined.presubmitchecks.core.CheckResultMessage
 import org.undermined.presubmitchecks.core.CheckResultMessage.Severity
 import org.undermined.presubmitchecks.core.Checker
@@ -31,9 +34,9 @@ import org.undermined.presubmitchecks.core.CheckerRegistry
 import org.undermined.presubmitchecks.core.CheckerReporter
 import org.undermined.presubmitchecks.core.CheckerService
 import org.undermined.presubmitchecks.core.CoreConfig
-import org.undermined.presubmitchecks.core.FileContents
 import org.undermined.presubmitchecks.core.runChecks
 import org.undermined.presubmitchecks.core.visit
+import org.undermined.presubmitchecks.fixes.Fixes
 import org.undermined.presubmitchecks.git.GitChangelists
 import org.undermined.presubmitchecks.git.GitHubWorkflowCommands
 import org.undermined.presubmitchecks.git.GitLocalRepository
@@ -44,15 +47,18 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Path
 import retrofit2.http.Query
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
+import kotlin.system.measureTimeMillis
 
 class GitHubAction : SuspendingCliktCommand("github-action") {
     val githubApiUrl by option(envvar = "GITHUB_API_URL").required()
     val githubRepoToken by option(envvar = "GITHUB_REPO_TOKEN").required()
     val githubEventPath by option(envvar = "GITHUB_EVENT_PATH").required()
     val config by option(envvar = "INPUT_CONFIG_FILE")
-    val fix by option(help="Apply fixes to any changed files.")
+    val fix by option(envvar = "INPUT_APPLY_FIXES", help="Apply fixes")
         .boolean()
         .default(false)
 
@@ -87,7 +93,6 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
         val changelist = Changelist(
             title = event.pull_request.title,
             description = event.pull_request.body ?: "",
-            patchOnly = false,
             files = changedFiles.map {
                 when (it.status) {
                     "added" -> Changelist.FileOperation.AddedFile(
@@ -96,12 +101,7 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
                             GitChangelists.parseFilePatch(patch)
                         } ?: emptyList(),
                         afterRef = event.pull_request.head.sha,
-                        afterRevision = contentsForFileRef(
-                            event.pull_request,
-                            it.filename,
-                            event.pull_request.head.sha,
-                            it.patch == null,
-                        ),
+                        isBinary = it.patch == null,
                     )
 
                     "removed" -> Changelist.FileOperation.RemovedFile(
@@ -110,49 +110,19 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
                             GitChangelists.parseFilePatch(patch)
                         } ?: emptyList(),
                         beforeRef = event.pull_request.base.sha,
-                        beforeRevision = contentsForFileRef(
-                            event.pull_request,
-                            it.filename,
-                            event.pull_request.base.sha,
-                            it.patch == null,
-                        ),
+                        isBinary = it.patch == null,
                     )
 
-                    "modified" -> if (it.patch == null) {
-                        Changelist.FileOperation.ModifiedFile(
-                            it.filename,
-                            beforeName = it.previous_filename ?: it.filename,
-                            patchLines = emptyList(),
-                            beforeRef = event.pull_request.base.sha,
-                            afterRef = event.pull_request.head.sha,
-                            beforeRevision = contentsForFileRef(
-                                event.pull_request,
-                                it.filename,
-                                event.pull_request.base.sha,
-                                true,
-                            ),
-                            afterRevision = contentsForFileRef(
-                                event.pull_request,
-                                it.filename,
-                                event.pull_request.head.sha,
-                                true,
-                            ),
-                        )
-                    } else {
-                        Changelist.FileOperation.ModifiedFile(
-                            it.filename,
-                            beforeName = it.previous_filename ?: it.filename,
-                            patchLines = GitChangelists.parseFilePatch(it.patch),
-                            beforeRef = event.pull_request.base.sha,
-                            afterRef = event.pull_request.head.sha,
-                            afterRevision = contentsForFileRef(
-                                event.pull_request,
-                                it.filename,
-                                event.pull_request.head.sha,
-                                false,
-                            ),
-                        )
-                    }
+                    "modified" -> Changelist.FileOperation.ModifiedFile(
+                        it.filename,
+                        beforeName = it.previous_filename ?: it.filename,
+                        patchLines = it.patch?.let { patch ->
+                            GitChangelists.parseFilePatch(patch)
+                        } ?: emptyList(),
+                        beforeRef = event.pull_request.base.sha,
+                        afterRef = event.pull_request.head.sha,
+                        isBinary = it.patch == null,
+                    )
 
                     else -> TODO()
                 }
@@ -168,12 +138,18 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
 
         var hasFailure = false
 
+        val fixes = mutableListOf<CheckResultFix>()
         val reporter = object : CheckerReporter {
             override fun report(result: CheckResult) {
                 when (result) {
                     is CheckResultMessage -> {
-                        if (result.severity == Severity.ERROR) {
-                            hasFailure = true
+                        val fixResult = result.fix
+                        if (fix && fixResult != null) {
+                            fixes.add(fixResult)
+                        } else {
+                            if (result.severity == Severity.ERROR) {
+                                hasFailure = true
+                            }
                         }
                         val location = result.location
                         GitHubWorkflowCommands.message(
@@ -187,7 +163,11 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
                             endColumn = location?.endCol,
                         )
                     }
-
+                    is CheckResultFix -> {
+                        if (fix) {
+                            fixes.add(result)
+                        }
+                    }
                     is CheckResultDebug -> {
                         GitHubWorkflowCommands.debug(result.message)
                     }
@@ -197,8 +177,11 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
             override suspend fun flush() = Unit
         }
 
+        val repository = GitLocalRepository(
+            File("."),
+            currentRef = lazy { event.pull_request.head.sha }
+        )
         try {
-            val repository = GitLocalRepository(File(""))
             checkerService.runChecks(repository, changelist, reporter)
             reporter.flush()
         } finally {
@@ -206,40 +189,43 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
             okHttpClient.connectionPool().evictAll()
         }
 
+        if (fixes.isNotEmpty()) {
+            val fixFiles = fixes.groupBy { it.file }
+            ByteArrayOutputStream(4096 * 8).use { tmpBuffer ->
+                fixFiles.forEach { fixesForFile ->
+                    val transform = Fixes.chainStreamModifiers(
+                        fixesForFile.value
+                            .distinctBy { it.fixId }
+                            .map { it.transform }
+                    )
+                    val hasChanges = repository.readFile(
+                        fixesForFile.key,
+                        event.pull_request.head.sha,
+                    ).use {
+                        transform(it, tmpBuffer)
+                    }
+                    if (hasChanges) {
+                        echo("Fixing: ${fixesForFile.key}")
+                        try {
+                            val time = measureTimeMillis {
+                                repository.writeFile(fixesForFile.key) {
+                                    tmpBuffer.writeTo(it)
+                                }
+                            }
+                            echo("Fixed: ${fixesForFile.key} (${time}ms)")
+                        } catch (e: IOException) {
+                            echo("Could not fix: ${fixesForFile.key}", err = true)
+                        }
+                    }
+                    tmpBuffer.reset()
+                }
+                tmpBuffer.close()
+            }
+            GitHubWorkflowCommands.outputVar("APPLIED_FIXES", "1")
+        }
+
         if (hasFailure) {
             throw CliktError(statusCode = 1)
-        }
-    }
-
-    private fun contentsForFileRef(
-        pullRequest: GithubEvent.GithubPullRequest,
-        filename: String,
-        ref: String,
-        isBinary: Boolean,
-    ): FileContents {
-        val rawFetcher: () -> InputStream = {
-            if (File(".git").exists()) {
-                if (ref == pullRequest.head.sha) {
-                    File(filename).inputStream()
-                } else {
-                    Runtime.getRuntime().exec(arrayOf("git", "show", "$ref:$filename")).inputStream
-                }
-            } else {
-                TODO()
-            }
-        }
-        return if (isBinary) {
-            FileContents.Binary(suspend {
-                withContext(Dispatchers.IO) {
-                    rawFetcher()
-                }
-            })
-        } else {
-            FileContents.Text(suspend {
-                withContext(Dispatchers.IO) {
-                    rawFetcher().reader().buffered(4096).lineSequence()
-                }
-            })
         }
     }
 

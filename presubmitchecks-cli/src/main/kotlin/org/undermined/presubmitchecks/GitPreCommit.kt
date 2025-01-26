@@ -15,6 +15,7 @@ import kotlinx.serialization.json.decodeFromStream
 import org.undermined.presubmitchecks.core.Changelist
 import org.undermined.presubmitchecks.core.CheckResult
 import org.undermined.presubmitchecks.core.CheckResultDebug
+import org.undermined.presubmitchecks.core.CheckResultFix
 import org.undermined.presubmitchecks.core.CheckResultMessage
 import org.undermined.presubmitchecks.core.CheckerRegistry
 import org.undermined.presubmitchecks.core.CheckerReporter
@@ -28,6 +29,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import kotlin.io.path.pathString
+import kotlin.system.measureTimeMillis
 
 internal class GitPreCommit : SuspendingCliktCommand() {
     val config by option(help="Configuration file path").optionalValue("")
@@ -44,7 +46,6 @@ internal class GitPreCommit : SuspendingCliktCommand() {
         val changelist = Changelist(
             title = "",
             description = "",
-            patchOnly = false,
             files = when (diff) {
                 "-" -> {
                     GitChangelists.parseDiff(generateSequence(::readLine))
@@ -71,7 +72,26 @@ internal class GitPreCommit : SuspendingCliktCommand() {
                     }
                 }
             },
-        )
+        ).let { changelist ->
+            val previousRev = GitLocalRepository.getGitRevision(File("."))
+                ?: error("Could not get current repo revision")
+            changelist.copy(
+                files = changelist.files.map { file ->
+                    when (file) {
+                        is Changelist.FileOperation.AddedFile -> file.copy(
+                            afterRef = "",
+                        )
+                        is Changelist.FileOperation.ModifiedFile -> file.copy(
+                            beforeRef = previousRev,
+                            afterRef = ""
+                        )
+                        is Changelist.FileOperation.RemovedFile -> file.copy(
+                            beforeRef = previousRev
+                        )
+                    }
+                }
+            )
+        }
 
         val globalConfig: CheckerService.GlobalConfig = config?.let { filePath ->
             File(filePath).takeIf { it.exists() }?.inputStream()?.use {
@@ -81,20 +101,27 @@ internal class GitPreCommit : SuspendingCliktCommand() {
         val checkerService = CheckerRegistry.newServiceFromConfig(globalConfig)
 
         var hasFailure = false
-        val repository = GitLocalRepository(File(""))
-        val fixes = mutableListOf<Pair<String, FileFixFilter>>()
+        val repository = GitLocalRepository(
+            File("."),
+            currentRef = lazy { "" }
+        )
+        val fixes = mutableListOf<CheckResultFix>()
         val reporter = object : CheckerReporter {
             override fun report(result: CheckResult) {
                 when (result) {
                     is CheckResultMessage -> {
-                        val fixFilter = result.fix
-                        val fixPath = result.location?.file
-                        if (fix && fixFilter != null && fixPath != null) {
-                            fixes.add(fixPath.pathString to fixFilter)
+                        val fixResult = result.fix
+                        if (fix && fixResult != null) {
+                            fixes.add(fixResult)
                         } else {
                             hasFailure = true
                             echo(result.toConsoleOutput(), err = result.severity == CheckResultMessage.Severity.ERROR)
                             echo("", err = result.severity == CheckResultMessage.Severity.ERROR)
+                        }
+                    }
+                    is CheckResultFix -> {
+                        if (fix) {
+                            fixes.add(result)
                         }
                     }
                     is CheckResultDebug -> {
@@ -110,19 +137,26 @@ internal class GitPreCommit : SuspendingCliktCommand() {
         reporter.flush()
 
         if (fixes.isNotEmpty()) {
-            val fixGroups = fixes.groupBy({ it.first }, { it.second })
+            val fixFiles = fixes.groupBy { it.file }
             ByteArrayOutputStream(4096 * 8).use { tmpBuffer ->
-                fixGroups.forEach { fixesForFile ->
-                    val transform = Fixes.chainStreamModifiers(fixesForFile.value)
+                fixFiles.forEach { fixesForFile ->
+                    val transform = Fixes.chainStreamModifiers(
+                        fixesForFile.value
+                            .distinctBy { it.fixId }
+                            .map { it.transform }
+                    )
                     val hasChanges = repository.readFile(fixesForFile.key, "").use {
                         transform(it, tmpBuffer)
                     }
                     if (hasChanges) {
                         echo("Fixing: ${fixesForFile.key}")
                         try {
-                            repository.writeFile(fixesForFile.key) {
-                                tmpBuffer.writeTo(it)
+                            val time = measureTimeMillis {
+                                repository.writeFile(fixesForFile.key) {
+                                    tmpBuffer.writeTo(it)
+                                }
                             }
+                            echo("Fixed: ${fixesForFile.key} (${time}ms)")
                         } catch (e: IOException) {
                             echo("Could not fix: ${fixesForFile.key}", err = true)
                         }
@@ -131,7 +165,6 @@ internal class GitPreCommit : SuspendingCliktCommand() {
                 }
                 tmpBuffer.close()
             }
-
         }
 
         if (hasFailure) {
