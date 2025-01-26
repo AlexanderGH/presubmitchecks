@@ -651,6 +651,66 @@ class KeepSortedTest {
         )
     }
 
+    @Test
+    fun testMaintainSuffix() {
+        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("kt"))
+        keepSorted.checkSorted(
+            config,
+            """
+            // keep-sorted start maintain_suffix_order=(,)?(\s*(?://.*?|\/\*.*?|))
+            C, // bob
+            C, /* haha */
+            1,
+            D
+              D, // :)
+            B,
+            B, // lol
+            1,
+            A
+            // keep-sorted end
+            """.trimIndent(),
+            """
+            // keep-sorted start maintain_suffix_order=(,)?(\s*(?://.*?|\/\*.*?|))
+            1,
+            A,
+            B,
+            B, // lol
+            C, /* haha */
+            C, // bob
+            D
+              D // :)
+            // keep-sorted end
+            """.trimIndent()
+        )
+        keepSorted.checkSorted(
+            config,
+            """
+            // keep-sorted start
+            1,
+            3, // three
+            2
+            // keep-sorted end
+            // keep-sorted start
+            1,
+            3,
+            2 // two
+            // keep-sorted end
+            """.trimIndent(),
+            """
+            // keep-sorted start
+            1,
+            2
+            3, // three
+            // keep-sorted end
+            // keep-sorted start
+            1,
+            2 // two,
+            3
+            // keep-sorted end
+            """.trimIndent()
+        )
+    }
+
     @ParameterizedTest
     @ValueSource(strings = [
         "block",
