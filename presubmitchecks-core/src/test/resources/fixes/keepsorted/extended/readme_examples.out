@@ -1,0 +1,189 @@
+Sticky comments:
+    # keep-sorted-test start sticky_comments=no
+    # alice
+    # bob
+    # charlie
+    username: al1
+    username: bo2
+    username: ch3
+    # keep-sorted-test end
+
+    # keep-sorted-test start sticky_comments=yes
+    # alice
+    username: al1
+    # bob
+    username: bo2
+    # charlie
+    username: ch3
+    # keep-sorted-test end
+
+Groups:
+    // keep-sorted-test start group=yes
+    private final Bar bar;
+    private final Baz baz =
+        new Baz()
+    private final Foo foo;
+    // keep-sorted-test end
+
+    // keep-sorted-test start group=no
+        new Baz()
+    private final Bar bar;
+    private final Baz baz =
+    private final Foo foo;
+    // keep-sorted-test end
+
+Remove duplicates:
+    # keep-sorted-test start remove_duplicates=yes
+    rotation: bar
+    rotation: baz
+    rotation: foo
+    # keep-sorted-test end
+
+    # keep-sorted-test start remove_duplicates=no
+    rotation: bar
+    rotation: bar
+    rotation: baz
+    rotation: foo
+    # keep-sorted-test end
+
+Newline separated:
+    # keep-sorted-test start
+    Apples
+    Bananas
+    Oranges
+    Pineapples
+    # keep-sorted-test end
+
+    # keep-sorted-test start newline_separated=yes
+    Apples
+
+    Bananas
+
+    Oranges
+
+    Pineapples
+    # keep-sorted-test end
+
+Skip lines:
+    # keep-sorted-test start skip_lines=2
+    Name    | Value
+    ------- | -----
+    Alpha   | Foo
+    Bravo   | Bar
+    Charlie | Baz
+    Delta   | Qux
+    # keep-sorted-test end
+
+Case:
+    # keep-sorted-test start case=yes
+    Bravo
+    Delta
+    Foxtrot
+    alpha
+    charlie
+    echo
+    # keep-sorted-test end
+
+    # keep-sorted-test start case=no
+    alpha
+    Bravo
+    charlie
+    Delta
+    echo
+    Foxtrot
+    # keep-sorted-test end
+
+Group prefixes:
+    # keep-sorted-test start group_prefixes=and,with
+    hamburger
+    with lettuce
+    and tomatoes
+    peanut butter
+    and jelly
+    spaghetti
+    with meatballs
+    # keep-sorted-test end
+
+    # keep-sorted-test start group_prefixes=["and", "with"]
+    hamburger
+    with lettuce
+    and tomatoes
+    peanut butter
+    and jelly
+    spaghetti
+    with meatballs
+    # keep-sorted-test end
+
+Ignore prefixes:
+    // keep-sorted-test start ignore_prefixes=fs.setBoolFlag,fs.setIntFlag
+    fs.setBoolFlag("paws_with_cute_toebeans", true)
+    fs.setIntFlag("pretty_whiskered_kitten", 6)
+    fs.setBoolFlag("whiskered_adorable_dog", true)
+    // keep-sorted-test end
+
+Prefix order:
+    // keep-sorted-test start prefix_order=INIT_,,FINAL_
+    INIT_BAR
+    INIT_FOO
+    DO_SOMETHING_WITH_BAR
+    DO_SOMETHING_WITH_FOO
+    FINAL_BAR
+    FINAL_FOO
+    // keep-sorted-test end
+
+By regex:
+    // keep-sorted-test start by_regex=\w+;
+    String bar;
+    Object baz;
+    List<String> foo;
+    // keep-sorted-test end
+
+    // keep-sorted-test start by_regex=\w+; prefix_order=foo
+    List<String> foo;
+    String bar;
+    Object baz;
+    // keep-sorted-test end
+
+Numeric:
+    // keep-sorted-test start numeric=yes
+    BAR_1
+    BAR_2
+    BAR_00000000000000000000000000000000000000000000009
+    BAR_10
+    BAR_99999999999999999999999999999999999999999999999
+    FOO_2
+    FOO_3
+    FOO_100
+    // keep-sorted-test end
+
+    deployment_state = [
+      // keep-sorted-test start numeric=yes prefix_order=INIT,ROLLOUT,COMPLETE
+      // Start initialisation
+      INIT_1,
+      INIT_5,
+      INIT_10,
+      // Only deploy to 0.1%
+      ROLLOUT_0_1,
+      // just one percent.
+      ROLLOUT_1,
+      ROLLOUT_5,
+      ROLLOUT_10,
+      ROLLOUT_50,
+      // Nearly done...
+      ROLLOUT_100,
+      // All done.
+      COMPLETE,
+      // keep-sorted-test end
+    ]
+
+    droid_components = [
+      // keep-sorted-test start numeric=yes prefix_order=R2,C3
+      R2D2_BOLTS_5_MM,
+      R2D2_BOLTS_10_MM,
+      R2D2_PROJECTOR,
+      C3PO_ARM_L,
+      C3PO_ARM_R,
+      C3PO_HEAD,
+      R4_MOTIVATOR,
+      // keep-sorted-test end
+    ]
