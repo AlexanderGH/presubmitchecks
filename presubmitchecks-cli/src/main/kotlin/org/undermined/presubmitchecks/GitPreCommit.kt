@@ -129,8 +129,6 @@ internal class GitPreCommit : SuspendingCliktCommand() {
                     }
                 }
             }
-
-            override suspend fun flush() = Unit
         }
 
         checkerService.runChecks(repository, changelist, reporter)

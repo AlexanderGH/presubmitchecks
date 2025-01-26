@@ -7,11 +7,14 @@ import kotlinx.coroutines.runBlocking
 
 fun main(args: Array<String>) = runBlocking {
     PresubmitChecks()
-        .subcommands(GitPreCommit(), GitHubAction())
+        .subcommands(
+            FilesCommand(),
+            GitHubAction(),
+            GitPreCommit(),
+        )
         .main(args)
 }
 
 private class PresubmitChecks : SuspendingCliktCommand(name = "presubmit") {
     override suspend fun run() = Unit
 }
-

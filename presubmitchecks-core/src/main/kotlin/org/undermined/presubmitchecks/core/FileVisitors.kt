@@ -55,6 +55,7 @@ object FileVisitors {
                 override fun available(): Int = bb.remaining()
             }
         } else {
+            bb = ByteBuffer.allocate(0)
             inputStreamProvider.invoke()
         }.use { inputStream ->
             if (lineVisitors.isNotEmpty()) {

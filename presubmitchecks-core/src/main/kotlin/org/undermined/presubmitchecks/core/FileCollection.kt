@@ -14,32 +14,30 @@ suspend fun FileCollection.visit(
     repository: Repository, visitors:
     Collection<ChangelistVisitor.FileVisitor>,
 ) {
-    val changelist = this
-
-    changelist.files.forEach { file ->
+    files.forEach { file ->
         val fileVisitors = visitors
             .filter{
                 it.enterFile(file)
             }
 
-            FileVisitors.visitFile(
-                {
-                    repository.readFile(file.name, file.afterRef)
+        FileVisitors.visitFile(
+            {
+                repository.readFile(file.name, file.afterRef)
+            },
+            lineVisitors = fileVisitors
+                .filterIsInstance<FileAfterLineVisitor>().map { v ->
+                    { v.visitAfterLine(file.name, it) }
                 },
-                lineVisitors = fileVisitors
-                    .filterIsInstance<FileAfterLineVisitor>().map { v ->
-                        { v.visitAfterLine(file.name, it) }
-                    },
-                rawFileVisitorsSequential = fileVisitors
-                    .filterIsInstance<FileAfterSequentialVisitor>().map { v ->
-                        { v.visitAfterFile(file.name, it) }
-                    },
-                rawFileVisitorsRandom = fileVisitors
-                    .filterIsInstance<FileAfterRandomVisitor>().map { v ->
-                        { v.visitAfterFile(file.name, it) }
-                    },
-                isLineModified = fun (_): Boolean { return true },
-            )
+            rawFileVisitorsSequential = fileVisitors
+                .filterIsInstance<FileAfterSequentialVisitor>().map { v ->
+                    { v.visitAfterFile(file.name, it) }
+                },
+            rawFileVisitorsRandom = fileVisitors
+                .filterIsInstance<FileAfterRandomVisitor>().map { v ->
+                    { v.visitAfterFile(file.name, it) }
+                },
+            isLineModified = fun (_): Boolean { return true },
+        )
 
         fileVisitors.forEach { it.leaveFile(file) }
     }

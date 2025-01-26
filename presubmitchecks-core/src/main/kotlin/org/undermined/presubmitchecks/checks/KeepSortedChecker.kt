@@ -9,9 +9,11 @@ import org.undermined.presubmitchecks.core.CheckResultFix
 import org.undermined.presubmitchecks.core.CheckResultMessage
 import org.undermined.presubmitchecks.core.Checker
 import org.undermined.presubmitchecks.core.CheckerChangelistVisitorFactory
+import org.undermined.presubmitchecks.core.CheckerFileCollectionVisitorFactory
 import org.undermined.presubmitchecks.core.CheckerProvider
 import org.undermined.presubmitchecks.core.CheckerReporter
 import org.undermined.presubmitchecks.core.CoreConfig
+import org.undermined.presubmitchecks.core.FileCollection
 import org.undermined.presubmitchecks.core.FileVisitors
 import org.undermined.presubmitchecks.core.Repository
 import org.undermined.presubmitchecks.core.toResultSeverity
@@ -29,67 +31,79 @@ class KeepSortedChecker(
     override val config: CoreConfig,
 ) :
     Checker,
-    CheckerChangelistVisitorFactory {
+    CheckerChangelistVisitorFactory,
+    CheckerFileCollectionVisitorFactory {
+
     override fun newCheckVisitor(
         repository: Repository,
         changelist: Changelist,
         reporter: CheckerReporter
     ): Optional<ChangelistVisitor> {
-        return Optional.of(object :
-            ChangelistVisitor,
-            ChangelistVisitor.FileVisitor,
-            //ChangelistVisitor.FileVisitor.FileAfterLineVisitor,
-            ChangelistVisitor.FileVisitor.FileAfterSequentialVisitor {
+        return Optional.of(Checker((reporter)))
+    }
 
-            override fun enterFile(file: Changelist.FileOperation): Boolean {
-                return file.isText && file !is Changelist.FileOperation.RemovedFile
+    override fun newCheckVisitor(
+        repository: Repository,
+        fileCollection: FileCollection,
+        reporter: CheckerReporter
+    ): Optional<ChangelistVisitor.FileVisitor> {
+        return Optional.of(Checker(reporter))
+    }
+
+    inner class Checker(private val reporter: CheckerReporter) :
+        ChangelistVisitor,
+        ChangelistVisitor.FileVisitor,
+        //ChangelistVisitor.FileVisitor.FileAfterLineVisitor,
+        ChangelistVisitor.FileVisitor.FileAfterSequentialVisitor {
+
+        override fun enterFile(file: Changelist.FileOperation): Boolean {
+            return file.isText && file !is Changelist.FileOperation.RemovedFile
+        }
+
+        fun visitAfterLine(name: String, line: FileVisitors.FileLine): Boolean {
+            if (line.content.contains("keep-sorted ")) {
+                reporter.report(
+                    CheckResultFix(
+                        fixId = ID,
+                        file = name,
+                        transform = ::autoFix,
+                    )
+                )
             }
+            return true
+        }
 
-            fun visitAfterLine(name: String, line: FileVisitors.FileLine): Boolean {
-                if (line.content.contains("keep-sorted ")) {
-                    reporter.report(
-                        CheckResultFix(
+        override suspend fun visitAfterFile(name: String, inputStream: InputStream) {
+            val changed = AtomicInteger()
+            val keepSorted = KeepSorted()
+            Fixes.didLinesChange(inputStream.bufferedReader().lineSequence(), changed) {
+                yieldAll(keepSorted.sort(
+                    config = KeepSortedConfig(
+                        matchRegexp = KeepSortedConfig.pattern("kt")
+                    ),
+                    lines = it,
+                ))
+            }.count()
+            if (changed.get() != -1) {
+                reporter.report(
+                    CheckResultMessage(
+                        checkGroupId = ID,
+                        title = "Not Sorted",
+                        message = "This section should be kept sorted.",
+                        severity = config.severity.toResultSeverity(),
+                        location = CheckResultMessage.Location(
+                            file = name,
+                            startLine = changed.get(),
+                        ),
+                        fix = CheckResultFix(
                             fixId = ID,
                             file = name,
                             transform = ::autoFix,
                         )
                     )
-                }
-                return true
+                )
             }
-
-            override suspend fun visitAfterFile(name: String, inputStream: InputStream) {
-                val changed = AtomicInteger()
-                val keepSorted = KeepSorted()
-                Fixes.didLinesChange(inputStream.bufferedReader().lineSequence(), changed) {
-                    yieldAll(keepSorted.sort(
-                        config = KeepSortedConfig(
-                            matchRegexp = KeepSortedConfig.pattern("kt")
-                        ),
-                        lines = it,
-                    ))
-                }.count()
-                if (changed.get() != -1) {
-                    reporter.report(
-                        CheckResultMessage(
-                            checkGroupId = ID,
-                            title = "Not Sorted",
-                            message = "This section should be kept sorted.",
-                            severity = config.severity.toResultSeverity(),
-                            location = CheckResultMessage.Location(
-                                file = name,
-                                startLine = changed.get(),
-                            ),
-                            fix = CheckResultFix(
-                                fixId = ID,
-                                file = name,
-                                transform = ::autoFix,
-                            )
-                        )
-                    )
-                }
-            }
-        })
+        }
     }
 
     fun autoFix(inputStream: InputStream, outputStream: OutputStream): Boolean {
