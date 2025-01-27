@@ -11,14 +11,14 @@ the current file) and an  optional label (if absent: the entire file), though at
 specified. Blocks may be nested, but start and end directives must be balanced.
 
 ```
-// Special syntax to disable procesing this lint in the rest of the file.
+// Special syntax to disable processing this lint in the rest of the file.
 // Useful for using the check string in things like documentation.
 // LINT.IfChange(@ignore)
 
 // Anonymous Block
 LINT.IfChange
 // Labeled Block
-// Note: Label must match [a-z-]+
+// Note: Label must match [A-Za-z-]+
 LINT.IfChange(my-block-name)
 
 // Relative path to another file.
