@@ -10,6 +10,7 @@ import com.github.ajalt.clikt.parameters.options.varargValues
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import org.undermined.presubmitchecks.core.Changelist
+import org.undermined.presubmitchecks.core.Changelist.FileOperation
 import org.undermined.presubmitchecks.core.CheckResult
 import org.undermined.presubmitchecks.core.CheckResultDebug
 import org.undermined.presubmitchecks.core.CheckResultFix
@@ -21,9 +22,11 @@ import org.undermined.presubmitchecks.core.FileCollection
 import org.undermined.presubmitchecks.core.LocalFilesystemRepository
 import org.undermined.presubmitchecks.core.Repository
 import org.undermined.presubmitchecks.core.runChecks
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.nio.charset.StandardCharsets
 import java.nio.file.FileSystems
 import java.nio.file.PathMatcher
 import java.nio.file.Paths
@@ -38,19 +41,41 @@ class FilesCommand : SuspendingCliktCommand("files") {
 
     override suspend fun run() {
         val basePath = File(".")
-        val (filenames, repository) = if (files.isNotEmpty()) {
+        val (fileCollection, repository) = if (files.isNotEmpty()) {
             val files = matchFiles(basePath, files)
             Pair(
-                files.map { it.path },
+                FileCollection(
+                    files = files.map { file ->
+                        FileOperation.AddedFile(
+                            file.path,
+                            patchLines = emptyList(),
+                            afterRef = "",
+                            isBinary = file.inputStream().buffered().use {
+                                !LocalFilesystemRepository.isText(it)
+                            }
+                        )
+                    }
+                ),
                 LocalFilesystemRepository(basePath)
             )
         } else {
+            val input = ByteArrayInputStream(System.`in`.readAllBytes())
             Pair(
-                listOf(""),
+                FileCollection(
+                    files = listOf(
+                        FileOperation.AddedFile(
+                            "",
+                            patchLines = emptyList(),
+                            afterRef = "",
+                            isBinary = !LocalFilesystemRepository.isText(input, input.available())
+                        )
+                    )
+                ),
                 object : Repository, Repository.WritableRepository {
                     override suspend fun readFile(path: String, ref: String): InputStream {
                         check(path == "" && ref == "")
-                        return System.`in`
+                        input.reset()
+                        return input
                     }
 
                     override suspend fun writeFile(path: String, writer: (OutputStream) -> Unit) {
@@ -86,7 +111,7 @@ class FilesCommand : SuspendingCliktCommand("files") {
             }
         }
 
-        checkerService.runChecks(repository, filenames, reporter)
+        checkerService.runChecks(repository, fileCollection, reporter)
         reporter.flush()
     }
 

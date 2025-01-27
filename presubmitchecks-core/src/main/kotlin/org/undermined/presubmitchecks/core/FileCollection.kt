@@ -53,23 +53,15 @@ interface CheckerFileCollectionVisitorFactory {
 
 suspend fun CheckerService.runChecks(
     repository: Repository,
-    files: Iterable<String>,
+    fileCollection: FileCollection,
     reporter: CheckerReporter
 ) {
-    val fc = FileCollection(files.map { file ->
-        FileOperation.AddedFile(
-            file,
-            patchLines = emptyList(),
-            afterRef = "",
-            isBinary = false
-        )
-    })
     checkers.values.filterIsInstance<CheckerFileCollectionVisitorFactory>().map {
-        it.newCheckVisitor(repository, fc, reporter = reporter)
+        it.newCheckVisitor(repository, fileCollection, reporter = reporter)
     }
         .filter { it.isPresent }
         .map { it.get() }
         .takeIf { it.isNotEmpty() }?.let {
-            fc.visit(repository, it)
+            fileCollection.visit(repository, it)
         }
 }

@@ -70,7 +70,7 @@ class FileEndsInNewLineChecker(
                                 checkGroupId = ID,
                                 severity = config.severity.toResultSeverity(),
                                 title = "File Ending",
-                                message = "${file.name} must end in a single new line",
+                                message = "File must end in a single new line.",
                                 location = CheckResultMessage.Location(
                                     file = file.name,
                                     startLine = lastLine.line,
@@ -113,7 +113,7 @@ class FileEndsInNewLineChecker(
             val nlCount = last4.reversed()
                 .takeWhile { it == LF_BYTE || it == CR_BYTE }
                 .count { it == LF_BYTE }
-            if (nlCount != 1) {
+            if (last4.isNotEmpty() && nlCount != 1) {
                 reporter.report(
                     CheckResultMessage(
                         checkGroupId = ID,
@@ -172,6 +172,8 @@ class FileEndsInNewLineChecker(
         outputStream.write(lfi)
         return newlineCount != 1
     }
+
+    // TODO: Generalize to also check for presence of CR in any source files
 
     companion object {
         const val ID = "FileEndsInNewLine"

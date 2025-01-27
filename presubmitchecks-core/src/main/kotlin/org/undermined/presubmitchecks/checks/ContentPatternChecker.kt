@@ -17,7 +17,7 @@ import org.undermined.presubmitchecks.core.FileCollection
 import org.undermined.presubmitchecks.core.Repository
 import java.util.Optional
 
-class FileContentPatternChecker(
+class ContentPatternChecker(
     override val config: PatternsConfig,
 ) :
     Checker,
@@ -44,18 +44,33 @@ class FileContentPatternChecker(
         ChangelistVisitor,
         ChangelistVisitor.FileVisitor {
 
+        /**
+         * TODO Checks/Patterns
+         *
+         * Description/Title:
+         * - DO NOT SUBMIT
+         * - NO EMPTY DESCRIPTION
+         * - conventional commits
+         * - Gender Neutrality
+         * - Inclusive language
+         * - No tabs
+         * - No trailing whitespace
+         * - to do format
+         * - long lines
+         */
+
     }
 
     companion object {
-        const val ID = "PatternComment"
+        const val ID = "ContentPattern"
 
         val PROVIDER = object : CheckerProvider {
             override val id: String = ID
 
             override fun newChecker(
                 config: JsonElement,
-            ): FileContentPatternChecker {
-                return FileContentPatternChecker(
+            ): ContentPatternChecker {
+                return ContentPatternChecker(
                     config = Json.decodeFromJsonElement(config),
                 )
             }
@@ -64,7 +79,7 @@ class FileContentPatternChecker(
         @Serializable
         data class PatternsConfig(
             override val severity: CheckerConfig.CheckerMode = CheckerConfig.CheckerMode.WARNING,
-            val patterns: List<CommentPattern>,
+            val patterns: List<CommentPattern> = emptyList(),
         ) : CheckerConfig {
             @Serializable
             data class CommentPattern(
@@ -73,8 +88,8 @@ class FileContentPatternChecker(
                 val title: String? = null,
                 val targetBranches: List<String> = emptyList(),
                 val files: List<String> = emptyList(),
-                val lines: List<String> = emptyList(),
-                val modifications: List<String> = listOf("added"),
+                val patterns: List<String> = emptyList(),
+                val context: List<String> = listOf("file:name", "file:line:added", "cl:title", "cl:description"),
                 val severity: CheckResultMessage.Severity? = null,
             )
         }

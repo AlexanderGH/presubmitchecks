@@ -4,19 +4,21 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.decodeFromStream
-import org.undermined.presubmitchecks.checks.FileContentPatternChecker
+import org.undermined.presubmitchecks.checks.ContentPatternChecker
 import org.undermined.presubmitchecks.checks.FileEndsInNewLineChecker
 import org.undermined.presubmitchecks.checks.IfChangeThenChangeChecker
 import org.undermined.presubmitchecks.checks.KeepSortedChecker
+import org.undermined.presubmitchecks.checks.ValidJsonChecker
 
 class CheckerRegistry {
     companion object {
         private val allCheckerProviders = listOf(
             // keep-sorted start
-            FileContentPatternChecker.PROVIDER,
+            ContentPatternChecker.PROVIDER,
             FileEndsInNewLineChecker.PROVIDER,
             IfChangeThenChangeChecker.PROVIDER,
             KeepSortedChecker.PROVIDER,
+            ValidJsonChecker.PROVIDER,
             // keep-sorted end
         ).associateBy { it.id }
 
