@@ -1,0 +1,11 @@
+Keeps comments with item but commas with position:
+    // keep-sorted-test start maintain_suffix_order=(,)?(\s*(?://.*?|\/\*.*?|))
+    1,
+    A,
+    B,
+    B, // lol
+    C, /* haha */
+    C, // bob
+    D
+      D // :)
+    // keep-sorted-test end

@@ -1,0 +1,12 @@
+Initial extra indent is not ignored:
+    // keep-sorted-test start
+        b
+      c
+      a
+    // keep-sorted-test end
+    middle
+    // keep-sorted-test start
+        b
+    c
+    a
+    // keep-sorted-test end

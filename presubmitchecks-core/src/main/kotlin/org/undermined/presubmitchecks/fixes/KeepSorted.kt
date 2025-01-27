@@ -203,10 +203,11 @@ class KeepSorted {
                             i += end.value.length
                             groupBlockStackIgnoreUntil = null
                             groupBlockStack.removeLast()
+                            continue
                         } else {
-                            i++
+                            i = line.length
+                            break
                         }
-                        continue
                     }
                     val startIgnore = globalConfig.ignoreBlocks.entries.firstOrNull {
                         line.startsWith(it.key, i)

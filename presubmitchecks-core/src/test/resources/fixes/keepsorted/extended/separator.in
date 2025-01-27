@@ -1,0 +1,23 @@
+Matches Google behavior by default:
+    // keep-sorted-test start
+    1,
+    3, // three
+    2
+    // keep-sorted-test end
+    // keep-sorted-test start
+    1,
+    3,
+    2 // two
+    // keep-sorted-test end
+    // keep-sorted-test start
+    c,
+    b,
+    a
+    // keep-sorted-test end
+
+Handles blank lines:
+    // keep-sorted-test start
+    ".java",
+
+    ".yml",
+    // keep-sorted-test end

@@ -1,5 +1,8 @@
 {
   "checkerConfigs": {
+    "ContentPattern": {
+      "severity": "WARNING"
+    },
     "FileEndsInNewLine": {
       "severity": "WARNING"
     },
@@ -8,6 +11,9 @@
     },
     "KeepSorted": {
       "severity": "WARNING"
+    },
+    "ValidJson": {
+      "severity": "ERROR"
     }
   }
 }

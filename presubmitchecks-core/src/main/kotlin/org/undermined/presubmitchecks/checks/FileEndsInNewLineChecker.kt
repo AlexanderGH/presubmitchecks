@@ -10,13 +10,16 @@ import org.undermined.presubmitchecks.core.CheckResultMessage
 import org.undermined.presubmitchecks.core.Checker
 import org.undermined.presubmitchecks.core.CheckerChangelistVisitorFactory
 import org.undermined.presubmitchecks.core.CheckerConfig
+import org.undermined.presubmitchecks.core.CheckerFileCollectionVisitorFactory
 import org.undermined.presubmitchecks.core.CheckerProvider
 import org.undermined.presubmitchecks.core.CheckerReporter
 import org.undermined.presubmitchecks.core.CoreConfig
+import org.undermined.presubmitchecks.core.FileCollection
 import org.undermined.presubmitchecks.core.Repository
 import org.undermined.presubmitchecks.core.toResultSeverity
 import java.io.InputStream
 import java.io.OutputStream
+import java.nio.ByteBuffer
 import java.nio.file.Path
 import java.util.Optional
 
@@ -24,54 +27,112 @@ class FileEndsInNewLineChecker(
     override val config: CoreConfig,
 ) :
     Checker,
-    CheckerChangelistVisitorFactory {
+    CheckerChangelistVisitorFactory,
+    CheckerFileCollectionVisitorFactory {
+
     override fun newCheckVisitor(
         repository: Repository,
         changelist: Changelist,
         reporter: CheckerReporter
     ): Optional<ChangelistVisitor> {
-        return Optional.of(object : ChangelistVisitor, ChangelistVisitor.FileVisitor {
-            override fun enterFile(file: Changelist.FileOperation): Boolean {
-                if (file is Changelist.FileOperation.RemovedFile || file.isBinary) {
-                    return false
-                }
-                if (newLineFiles.any { file.name.endsWith(it) }) {
-                    val lastLine = when (file) {
-                        is Changelist.FileOperation.AddedFile -> file.patchLines.lastOrNull()
-                        is Changelist.FileOperation.ModifiedFile -> file.patchLines.lastOrNull {
-                            it.operation == Changelist.ChangeOperation.ADDED
-                        }
-                        else -> null
-                    }
-                    if (lastLine != null) {
-                        if (!lastLine.hasNewLine) {
-                            reporter.report(
-                                CheckResultMessage(
-                                    checkGroupId = ID,
-                                    severity = config.severity.toResultSeverity(),
-                                    title = "File Ending",
-                                    message = "${file.name} must end in a single new line",
-                                    location = CheckResultMessage.Location(
-                                        file = file.name,
-                                        startLine = lastLine.line,
-                                    ),
-                                    fix = CheckResultFix(
-                                        fixId = ID,
-                                        file = file.name,
-                                        transform = ::autoFix
-                                    ),
-                                )
-                            )
-                            return false
-                        }
-                    }
-                }
-                return true
-            }
-        })
+        return Optional.of(Checker(reporter))
     }
 
-    // TODO: verify there is only a single trailing line
+    override fun newCheckVisitor(
+        repository: Repository,
+        fileCollection: FileCollection,
+        reporter: CheckerReporter
+    ): Optional<ChangelistVisitor.FileVisitor> {
+        return Optional.of(Checker(reporter))
+    }
+
+    internal inner class Checker(
+        private val reporter: CheckerReporter
+    ) : ChangelistVisitor,
+        ChangelistVisitor.FileVisitor,
+        ChangelistVisitor.FileVisitor.FileAfterSequentialVisitor {
+        override fun enterFile(file: Changelist.FileOperation): Boolean {
+            if (file is Changelist.FileOperation.RemovedFile || file.isBinary) {
+                return false
+            }
+            if (newLineFiles.any { file.name.endsWith(it) }) {
+                val lastLine = when (file) {
+                    is Changelist.FileOperation.AddedFile -> file.patchLines.lastOrNull()
+                    is Changelist.FileOperation.ModifiedFile -> file.patchLines.lastOrNull {
+                        it.operation == Changelist.ChangeOperation.ADDED
+                    }
+                    else -> null
+                }
+                if (lastLine != null) {
+                    if (!lastLine.hasNewLine) {
+                        reporter.report(
+                            CheckResultMessage(
+                                checkGroupId = ID,
+                                severity = config.severity.toResultSeverity(),
+                                title = "File Ending",
+                                message = "File must end in a single new line.",
+                                location = CheckResultMessage.Location(
+                                    file = file.name,
+                                    startLine = lastLine.line,
+                                ),
+                                fix = CheckResultFix(
+                                    fixId = ID,
+                                    file = file.name,
+                                    transform = ::autoFix
+                                ),
+                            )
+                        )
+                        return false
+                    }
+                }
+            }
+            return true
+        }
+
+        override suspend fun visitAfterFile(name: String, inputStream: InputStream) {
+            val buffer = ByteBuffer.allocate(1024)
+            var bytesRead: Int = 0
+            val last4 = ArrayDeque<Byte>(4)
+
+            while (inputStream.available() > 4) {
+                inputStream.skip(inputStream.available() - 4L)
+            }
+
+            while (inputStream.read(buffer.array()).also { bytesRead = it } != -1) {
+                if (bytesRead == 0) break // Handle empty streams
+                if (bytesRead > 4) {
+                    last4.clear()
+                }
+                for (i in (bytesRead - 4).coerceAtLeast(0) until bytesRead) {
+                    if (last4.size == 4) {
+                        last4.removeFirst()
+                    }
+                    last4.addLast(buffer.get(i))
+                }
+            }
+            val nlCount = last4.reversed()
+                .takeWhile { it == LF_BYTE || it == CR_BYTE }
+                .count { it == LF_BYTE }
+            if (last4.isNotEmpty() && nlCount != 1) {
+                reporter.report(
+                    CheckResultMessage(
+                        checkGroupId = ID,
+                        severity = config.severity.toResultSeverity(),
+                        title = "File Ending",
+                        message = "File must end in a single new line. Found $nlCount new lines.",
+                        location = CheckResultMessage.Location(
+                            file = name,
+                        ),
+                        fix = CheckResultFix(
+                            fixId = ID,
+                            file = name,
+                            transform = ::autoFix
+                        ),
+                    )
+                )
+            }
+        }
+    }
 
     fun autoFix(inputStream: InputStream, outputStream: OutputStream): Boolean {
         val buffer = ByteArray(8192)
@@ -112,8 +173,18 @@ class FileEndsInNewLineChecker(
         return newlineCount != 1
     }
 
+    // TODO: Generalize to also check for presence of CR in any source files
+
     companion object {
         const val ID = "FileEndsInNewLine"
+
+        const val LF = '\n'
+        const val LF_CODE = LF.code
+        const val LF_BYTE = LF_CODE.toByte()
+        const val CR = '\r'
+        const val CR_CODE = CR.code
+        const val CR_BYTE = CR_CODE.toByte()
+
         private val newLineFiles = setOf(
             // keep-sorted start
             "java",

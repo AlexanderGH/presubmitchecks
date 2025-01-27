@@ -14,32 +14,30 @@ suspend fun FileCollection.visit(
     repository: Repository, visitors:
     Collection<ChangelistVisitor.FileVisitor>,
 ) {
-    val changelist = this
-
-    changelist.files.forEach { file ->
+    files.forEach { file ->
         val fileVisitors = visitors
             .filter{
                 it.enterFile(file)
             }
 
-            FileVisitors.visitFile(
-                {
-                    repository.readFile(file.name, file.afterRef)
+        FileVisitors.visitFile(
+            {
+                repository.readFile(file.name, file.afterRef)
+            },
+            lineVisitors = fileVisitors
+                .filterIsInstance<FileAfterLineVisitor>().map { v ->
+                    { v.visitAfterLine(file.name, it) }
                 },
-                lineVisitors = fileVisitors
-                    .filterIsInstance<FileAfterLineVisitor>().map { v ->
-                        { v.visitAfterLine(file.name, it) }
-                    },
-                rawFileVisitorsSequential = fileVisitors
-                    .filterIsInstance<FileAfterSequentialVisitor>().map { v ->
-                        { v.visitAfterFile(file.name, it) }
-                    },
-                rawFileVisitorsRandom = fileVisitors
-                    .filterIsInstance<FileAfterRandomVisitor>().map { v ->
-                        { v.visitAfterFile(file.name, it) }
-                    },
-                isLineModified = fun (_): Boolean { return true },
-            )
+            rawFileVisitorsSequential = fileVisitors
+                .filterIsInstance<FileAfterSequentialVisitor>().map { v ->
+                    { v.visitAfterFile(file.name, it) }
+                },
+            rawFileVisitorsRandom = fileVisitors
+                .filterIsInstance<FileAfterRandomVisitor>().map { v ->
+                    { v.visitAfterFile(file.name, it) }
+                },
+            isLineModified = fun (_): Boolean { return true },
+        )
 
         fileVisitors.forEach { it.leaveFile(file) }
     }
@@ -55,23 +53,15 @@ interface CheckerFileCollectionVisitorFactory {
 
 suspend fun CheckerService.runChecks(
     repository: Repository,
-    files: Iterable<String>,
+    fileCollection: FileCollection,
     reporter: CheckerReporter
 ) {
-    val fc = FileCollection(files.map { file ->
-        FileOperation.AddedFile(
-            file,
-            patchLines = emptyList(),
-            afterRef = "",
-            isBinary = false
-        )
-    })
     checkers.values.filterIsInstance<CheckerFileCollectionVisitorFactory>().map {
-        it.newCheckVisitor(repository, fc, reporter = reporter)
+        it.newCheckVisitor(repository, fileCollection, reporter = reporter)
     }
         .filter { it.isPresent }
         .map { it.get() }
         .takeIf { it.isNotEmpty() }?.let {
-            fc.visit(repository, it)
+            fileCollection.visit(repository, it)
         }
 }

@@ -1,0 +1,12 @@
+Template param is expanded:
+    // keep-sorted-test start template=gradle.kts
+    implementation(a.a) {
+        because("a")
+    }
+    implementation(a.b) {
+        because("b")
+    }
+    implementation(b.c) {
+        because("c")
+    }
+    // keep-sorted-test end
