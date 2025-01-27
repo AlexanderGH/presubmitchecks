@@ -115,7 +115,11 @@ class FilesCommand : SuspendingCliktCommand("files") {
         reporter.flush()
     }
 
-    private fun matchFiles(base: File, items: List<String>): List<File> {
+    private fun matchFiles(
+        base: File,
+        items: List<String>,
+        includeDirectories: Boolean = false,
+    ): List<File> {
         val results = mutableListOf<File>()
 
         fun traverse(dir: File, matcher: PathMatcher) {
@@ -126,14 +130,13 @@ class FilesCommand : SuspendingCliktCommand("files") {
             val files = dir.listFiles() ?: return
 
             for (file in files) {
-                // Avoid creating a new Path object if not necessary
                 if (file.isDirectory) {
-                    if (matcher.matches(Paths.get(file.absolutePath))) {
-                        results.add(file) // Add directory if it matches
+                    if (includeDirectories && matcher.matches(Paths.get(file.absolutePath))) {
+                        results.add(file)
                     }
                     traverse(file, matcher) // Recurse first, potentially avoiding path creation
                 } else if (matcher.matches(Paths.get(file.absolutePath))) {
-                    results.add(file) // Add file if it matches
+                    results.add(file)
                 }
             }
         }

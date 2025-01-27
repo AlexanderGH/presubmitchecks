@@ -25,12 +25,32 @@ runs:
       with:
         distribution: temurin
         java-version: 17
-    - run: |
-        echo "::group::Install CLI"
-        $GITHUB_ACTION_PATH/gradlew :presubmitchecks-cli:installDist
-        echo "::endgroup::"
+    - name: Get Action SHA
       shell: bash
-    - run: $GITHUB_ACTION_PATH/presubmitchecks-cli/build/install/presubmitchecks-cli/bin/presubmitchecks-cli github-action
+      run: |
+        pushd ${{ github.action_path }}
+          ACTION_SHA=$(git rev-parse HEAD)
+          echo "ACTION_SHA=$ACTION_SHA" >> $GITHUB_ENV
+          ACTION_PATH=$(pwd)
+          echo "ACTION_PATH=$ACTION_PATH" >> $GITHUB_ENV
+        popd
+    - name: Restore Cache
+      id: cache-cli-restore
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.ACTION_PATH }}/presubmitchecks-cli/build/install/presubmitchecks-cli
+        key: ${{ runner.os }}-presubmitchecks-${{ env.ACTION_SHA }}
+    - name: Install Presubmit CLI
+      if: steps.cache-cli-restore.outputs.cache-hit != 'true'
+      run: |
+        pushd ${{ env.ACTION_PATH }}
+          chmod +x ./gradlew
+          ./gradlew :presubmitchecks-cli:installDist
+        popd
+      shell: bash
+
+    - name: Run Presubmit Checks
+      run: ${{ env.ACTION_PATH }}/presubmitchecks-cli/build/install/presubmitchecks-cli/bin/presubmitchecks-cli github-action
       shell: bash
       id: presubmitchecks
       env:

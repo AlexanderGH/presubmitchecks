@@ -25,15 +25,21 @@ jobs:
         with:
           cache-read-only: false
           cache-encryption-key: ${{ secrets.GradleEncryptionKey }}
+      - name: Restore Cache
+        id: cache-build-logic-restore
+        uses: actions/cache@v4
+        with:
+          path: build-logic/build/
+          key: build-logic-${{ hashFiles('build-logic/**/*.gradle.kts', 'gradle/**') }}
+      - run: ./gradlew check
+        shell: bash
       - name: Run Presubmit Checks
         uses: './'
         id: presubmitchecks
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           config-file: .github/presubmitchecks.json
-          apply-fixes: "true"
-      - run: ./gradlew check
-        shell: bash
+          # apply-fixes: "true"
 
 #      - name: Commit Fixes
 #        if: false && steps.presubmitchecks.outputs.applied-fixes == '1'
