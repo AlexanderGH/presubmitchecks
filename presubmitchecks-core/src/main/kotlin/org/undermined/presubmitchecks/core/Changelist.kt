@@ -3,6 +3,7 @@ package org.undermined.presubmitchecks.core
 data class Changelist(
     val title: String,
     val description: String,
+    val target: String? = null,
     val files: Collection<FileOperation>,
 ) {
     val tags: Map<String, String> by lazy {

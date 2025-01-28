@@ -71,7 +71,26 @@ data class CheckResultMessage(
             .append(message).apply {
                 location?.let {
                     append("\n")
-                    append("${it.file} ${arrayOf(it.startLine, ":", it.startCol, " ", it.endLine, ":", it.endCol).joinToString("")}")
+                    append(it.file)
+                    append(" ")
+                    append(arrayOf(it.startLine, ":", it.startCol, " ", it.endLine, ":", it.endCol).joinToString(""))
+
+                    if (false && it.startLine != null) {
+                        append(" ${it.startLine}")
+                        if (it.endLine == null || it.endLine == it.startLine) {
+                            if (it.startCol != null || it.endCol != null) {
+                                append(" ${it.startCol}->${it.endCol}")
+                            }
+                        } else {
+                            if (it.startCol != null) {
+                                append(":${it.startCol}")
+                            }
+                            append("->${it.endLine}")
+                            if (it.endCol != null) {
+                                append(":${it.endCol}")
+                            }
+                        }
+                    }
                 }
             }
             .toString()

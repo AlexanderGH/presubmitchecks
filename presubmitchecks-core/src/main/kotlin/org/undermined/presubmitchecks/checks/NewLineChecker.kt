@@ -9,7 +9,6 @@ import org.undermined.presubmitchecks.core.CheckResultFix
 import org.undermined.presubmitchecks.core.CheckResultMessage
 import org.undermined.presubmitchecks.core.Checker
 import org.undermined.presubmitchecks.core.CheckerChangelistVisitorFactory
-import org.undermined.presubmitchecks.core.CheckerConfig
 import org.undermined.presubmitchecks.core.CheckerFileCollectionVisitorFactory
 import org.undermined.presubmitchecks.core.CheckerProvider
 import org.undermined.presubmitchecks.core.CheckerReporter
@@ -20,10 +19,9 @@ import org.undermined.presubmitchecks.core.toResultSeverity
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.ByteBuffer
-import java.nio.file.Path
 import java.util.Optional
 
-class FileEndsInNewLineChecker(
+class NewLineChecker(
     override val config: CoreConfig,
 ) :
     Checker,
@@ -55,7 +53,10 @@ class FileEndsInNewLineChecker(
             if (file is Changelist.FileOperation.RemovedFile || file.isBinary) {
                 return false
             }
-            if (newLineFiles.any { file.name.endsWith(it) }) {
+            if (newLineFiles.any {
+                file.name.endsWith(it)
+            }) {
+                /*
                 val lastLine = when (file) {
                     is Changelist.FileOperation.AddedFile -> file.patchLines.lastOrNull()
                     is Changelist.FileOperation.ModifiedFile -> file.patchLines.lastOrNull {
@@ -85,15 +86,75 @@ class FileEndsInNewLineChecker(
                         return false
                     }
                 }
+                */
+                return true
             }
-            return true
+            return false
         }
 
         override suspend fun visitAfterFile(name: String, inputStream: InputStream) {
-            val buffer = ByteBuffer.allocate(1024)
+            val buffer = ByteBuffer.allocate(4096)
             var bytesRead: Int = 0
-            val last4 = ArrayDeque<Byte>(4)
+            var currentLine = 1
+            var totalCr = 0
+            var lastWasCr = false
+            var trailingNl = 0
 
+            while (inputStream.read(buffer.array()).also { bytesRead = it } != -1) {
+                if (bytesRead == 0) break // Handle empty streams
+                for (i in 0 until bytesRead) {
+                    val byte = buffer.get(i)
+                    when (byte) {
+                        LF_BYTE -> {
+                            if (!lastWasCr) {
+                                trailingNl++
+                                currentLine++
+                            }
+                            lastWasCr = false
+                        }
+                        CR_BYTE -> {
+                            lastWasCr = true
+                            trailingNl++
+                            currentLine++
+                            totalCr++
+                        }
+                        else -> {
+                            lastWasCr = false
+                            trailingNl = 0
+                        }
+                    }
+                }
+            }
+
+            val issues = mutableListOf<String>()
+            if (totalCr > 0) {
+                issues.add("File must use only \\n. Found $totalCr instances of \\r.")
+            }
+            if (trailingNl != 1) {
+                issues.add("File must end in a single new line. Found $trailingNl new lines.")
+            }
+
+            if (issues.isNotEmpty()) {
+                reporter.report(
+                    CheckResultMessage(
+                        checkGroupId = ID,
+                        severity = config.severity.toResultSeverity(),
+                        title = "New Lines",
+                        message = issues.joinToString(" "),
+                        location = CheckResultMessage.Location(
+                            file = name,
+                        ),
+                        fix = CheckResultFix(
+                            fixId = ID,
+                            file = name,
+                            transform = ::autoFix
+                        ),
+                    )
+                )
+            }
+
+            /*
+            val last4 = ArrayDeque<Byte>(4)
             while (inputStream.available() > 4) {
                 inputStream.skip(inputStream.available() - 4L)
             }
@@ -131,9 +192,56 @@ class FileEndsInNewLineChecker(
                     )
                 )
             }
+            */
         }
     }
 
+    fun autoFix(inputStream: InputStream, outputStream: OutputStream): Boolean {
+        val buffer = ByteArray(8192)
+        var bytesRead: Int = 0
+        var changes = 0
+        var lastByte = LF_BYTE
+        var lastNonNewLine = 0
+        while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+            for (i in 0 until bytesRead) {
+                val byte = buffer[i]
+                when (byte) {
+                    LF_BYTE -> {
+                        if (lastNonNewLine > 0) {
+                            outputStream.write(buffer, i - lastNonNewLine, lastNonNewLine)
+                            lastNonNewLine = 0
+                        }
+                        if (lastByte != CR_BYTE) {
+                            outputStream.write(LF_CODE)
+                        }
+                    }
+                    CR_BYTE -> {
+                        if (lastNonNewLine > 0) {
+                            outputStream.write(buffer, i - lastNonNewLine, lastNonNewLine)
+                            lastNonNewLine = 0
+                        }
+                        outputStream.write(LF_CODE)
+                        changes++
+                    }
+                    else -> {
+                        lastNonNewLine++
+                    }
+                }
+                lastByte = byte
+            }
+            if (lastNonNewLine > 0) {
+                outputStream.write(buffer, bytesRead - lastNonNewLine, lastNonNewLine)
+            }
+        }
+
+        if (lastByte != LF_BYTE && lastByte != CR_BYTE) {
+            outputStream.write(LF_CODE)
+            changes++
+        }
+        return changes != 1
+    }
+
+    /*
     fun autoFix(inputStream: InputStream, outputStream: OutputStream): Boolean {
         val buffer = ByteArray(8192)
         var fileSize = 0
@@ -172,11 +280,10 @@ class FileEndsInNewLineChecker(
         outputStream.write(lfi)
         return newlineCount != 1
     }
-
-    // TODO: Generalize to also check for presence of CR in any source files
+    */
 
     companion object {
-        const val ID = "FileEndsInNewLine"
+        const val ID = "NewLine"
 
         const val LF = '\n'
         const val LF_CODE = LF.code
@@ -187,11 +294,16 @@ class FileEndsInNewLineChecker(
 
         private val newLineFiles = setOf(
             // keep-sorted start
-            "java",
-            "kt",
-            "kts",
-            "md",
-            "yaml",
+            ".gradle",
+            ".java",
+            ".json",
+            ".kt",
+            ".kts",
+            ".md",
+            ".py",
+            ".txt",
+            ".yaml",
+            ".yml",
             // keep-sorted end
         )
 
@@ -200,8 +312,8 @@ class FileEndsInNewLineChecker(
 
             override fun newChecker(
                 config: JsonElement,
-            ): FileEndsInNewLineChecker {
-                return FileEndsInNewLineChecker(
+            ): NewLineChecker {
+                return NewLineChecker(
                     config = Json.decodeFromJsonElement(config),
                 )
             }

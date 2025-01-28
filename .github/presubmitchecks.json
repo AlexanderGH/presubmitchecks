@@ -1,12 +1,89 @@
 {
   "checkerConfigs": {
-    "FileEndsInNewLine": {
-      "severity": "ERROR"
+    "ContentPattern": {
+      "severity": "WARNING",
+      "patterns": [
+        {
+          "id": "DoNotSubmit",
+          "message": "The change should not be submitted/merged.",
+          "severity": "ERROR",
+          "matches": {
+            "patterns": [
+              "(?i)DO NOT (SUBMIT|MERGE)"
+            ],
+            "context": [
+              "cl:title",
+              "cl:description",
+              "file:line:any"
+            ]
+          }
+        },
+        {
+          "id": "EmptyTitleOrDescription",
+          "message": "You must add a title and description.",
+          "severity": "ERROR",
+          "matches": {
+            "patterns": [
+              "^\\s*$"
+            ],
+            "context": [
+              "cl:title",
+              "cl:description"
+            ]
+          }
+        },
+        {
+          "id": "ConventionalCommit",
+          "message": "Title must follow conventional commit syntax.",
+          "severity": "WARNING",
+          "matches": {
+            "patterns": [
+              "^(?P<type>build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test|¯\\\\_\\(ツ\\)_/¯)(?P<scope>\\(\\w+\\))?(?P<breaking>!)?(?P<subject>:\\s.*)?|^(?P<merge>Merge \\w+)"
+            ],
+            "expected": true,
+            "context": [
+              "cl:title"
+            ]
+          }
+        },
+        {
+          "id": "SpacesNotTabs",
+          "message": "Use spaces to indent, not tabs.",
+          "severity": "WARNING",
+          "matches": {
+            "patterns": [
+              "^\\s*(?<hl>\\t+)\\s*[^\\s]"
+            ],
+            "context": [
+              "file:line:any"
+            ]
+          }
+        },
+        {
+          "id": "NoTrailingWhitespace",
+          "message": "Use spaces to indent, not tabs.",
+          "severity": "WARNING",
+          "matches": {
+            "patterns": [
+              "\\s+$"
+            ],
+            "context": [
+              "file:line:any"
+            ]
+          }
+        }
+      ]
     },
     "IfChangeThenChange": {
       "severity": "WARNING"
     },
     "KeepSorted": {
+      "severity": "ERROR"
+    },
+    "NewLine": {
+      "severity": "ERROR"
+    },
+    "ValidJson": {
       "severity": "ERROR"
     }
   }
