@@ -4,13 +4,17 @@ plugins {
 }
 
 dependencies {
+    // keep-sorted start template=gradle-dependencies
     implementation(project(":presubmitchecks-core"))
+    // keep-sorted end
 
+    // keep-sorted start template=gradle-dependencies
     implementation(libs.clikt)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.kotlinx.serialization)
+    // keep-sorted end
 }
 
 application {

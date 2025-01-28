@@ -61,7 +61,7 @@
         },
         {
           "id": "NoTrailingWhitespace",
-          "message": "Use spaces to indent, not tabs.",
+          "message": "Trailing whitespace is not allowed.",
           "severity": "WARNING",
           "matches": {
             "patterns": [
@@ -78,7 +78,10 @@
       "severity": "WARNING"
     },
     "KeepSorted": {
-      "severity": "ERROR"
+      "severity": "ERROR",
+      "templates": {
+        "gradle-dependencies": "block=yes case=no by_regex=(api|implementation|testImplementation)\"?\\([^)]\\) numeric=yes prefix_order=api,implementation,testImplementation,androidTestImplementation"
+      }
     },
     "NewLine": {
       "severity": "ERROR"
