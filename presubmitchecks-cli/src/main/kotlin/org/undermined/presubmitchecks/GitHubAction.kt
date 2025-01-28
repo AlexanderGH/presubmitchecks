@@ -82,19 +82,23 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
             json.decodeFromStream<GithubEvent>(it)
         }
 
+        GitHubWorkflowCommands.debug(File(githubEventPath).readText())
+
         val changedFiles = githubService.getPullRequestFiles(
             "Bearer $githubRepoToken",
             event.repository.owner.login,
             event.repository.name,
             event.pull_request.number,
-            1
+            page = 1
         ).execute().body().orEmpty()
 
         val changelist = Changelist(
             title = event.pull_request.title,
             description = event.pull_request.body ?: "",
+            target = event.pull_request.base.ref,
             files = changedFiles.map {
                 when (it.status) {
+                    "copied",
                     "added" -> Changelist.FileOperation.AddedFile(
                         it.filename,
                         patchLines = it.patch?.let { patch ->
@@ -113,6 +117,9 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
                         isBinary = it.patch == null,
                     )
 
+                    "changed",
+                    "renamed",
+                    "unchanged",
                     "modified" -> Changelist.FileOperation.ModifiedFile(
                         it.filename,
                         beforeName = it.previous_filename ?: it.filename,
@@ -124,7 +131,7 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
                         isBinary = it.patch == null,
                     )
 
-                    else -> TODO()
+                    else -> TODO(it.status)
                 }
             }
         )
@@ -236,7 +243,8 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
             @Path("owner") owner: String,
             @Path("repo") repo: String,
             @Path("pull_number") number: Int,
-            @Query("page") page: Int
+            @Query("per_page") results: Int = 100,
+            @Query("page") page: Int,
         ): Call<List<GithubChangedFile>>
 
         @Serializable
@@ -268,7 +276,10 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
             val base: GithubPullRequestRef,
         ) {
             @Serializable
-            data class GithubPullRequestRef(val sha: String)
+            data class GithubPullRequestRef(
+                val ref: String, // Branch name
+                val sha: String,
+            )
         }
 
         @Serializable

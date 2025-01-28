@@ -2,9 +2,10 @@
 
 ## Supported Checks
 
-- [FileEndsInNewLine](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/FileEndsInNewLineChecker.md)
-- [IfChangedThenChange/IfThisThenThat](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/IfChangeThenChangeChecker.md)
+- [Content Patterns](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/ContentPatternChecker.md)
+- [IfChangeThenChange/IfThisThenThat](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/IfChangeThenChangeChecker.md)
 - [KeepSorted](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/KeepSortedChecker.md)
+- [NewLine](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/NewLineChecker.md)
 - [ValidJson](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/ValidJsonChecker.md)
 
 ## Usage

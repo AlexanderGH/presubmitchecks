@@ -1,15 +1,12 @@
 {
   "checkerConfigs": {
-    "ContentPattern": {
-      "severity": "WARNING"
-    },
-    "FileEndsInNewLine": {
-      "severity": "WARNING"
-    },
     "IfChangeThenChange": {
       "severity": "WARNING"
     },
     "KeepSorted": {
+      "severity": "WARNING"
+    },
+    "NewLine": {
       "severity": "WARNING"
     },
     "ValidJson": {

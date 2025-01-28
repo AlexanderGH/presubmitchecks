@@ -36,7 +36,7 @@ class IfChangeThenChangeChecker(
 {
 
     private val ifChangeThenChange =
-        """[\s/#;<>\-]*LINT\.(?:(IfChange|Ignore)(?:\(([a-z\-]+|@ignore)\))?|(ThenChange)\(([^):]*(?::[a-z-]+)?)\))[\s/#;<>\-]*""".toRegex()
+        """[\s/#;<>\-]*LINT\.(?:(IfChange|Ignore)(?:\(([A-Za-z\-]+|@ignore)\))?|(ThenChange)\(([^):]*(?::[A-Za-z-]+)?)\))[\s/#;<>\-]*""".toRegex()
 
     /**
      * Key: The block id that is requested to have changes.
