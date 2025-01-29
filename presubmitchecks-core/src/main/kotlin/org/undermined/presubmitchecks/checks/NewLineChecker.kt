@@ -94,6 +94,7 @@ class NewLineChecker(
 
         override suspend fun visitAfterFile(name: String, inputStream: InputStream) {
             val buffer = ByteBuffer.allocate(4096)
+            var totalBytes = 0
             var bytesRead: Int = 0
             var currentLine = 1
             var totalCr = 0
@@ -124,13 +125,14 @@ class NewLineChecker(
                         }
                     }
                 }
+                totalBytes += bytesRead
             }
 
             val issues = mutableListOf<String>()
             if (totalCr > 0) {
                 issues.add("File must use only \\n. Found $totalCr instances of \\r.")
             }
-            if (trailingNl != 1) {
+            if (totalBytes > 0 && trailingNl != 1) {
                 issues.add("File must end in a single new line. Found $trailingNl new lines.")
             }
 

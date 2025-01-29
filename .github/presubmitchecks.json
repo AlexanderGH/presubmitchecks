@@ -8,6 +8,7 @@
           "message": "The change should not be submitted/merged.",
           "severity": "ERROR",
           "matches": {
+            "changeTargets": ["+^main$"],
             "patterns": [
               "(?i)DO NOT (SUBMIT|MERGE)"
             ],
@@ -37,10 +38,10 @@
           "message": "Title must follow conventional commit syntax.",
           "severity": "WARNING",
           "matches": {
-            "patterns": [
+            "patterns": [".+"],
+            "excludes": [
               "^(?P<type>build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test|¯\\\\_\\(ツ\\)_/¯)(?P<scope>\\(\\w+\\))?(?P<breaking>!)?(?P<subject>:\\s.*)?|^(?P<merge>Merge \\w+)"
             ],
-            "expected": true,
             "context": [
               "cl:title"
             ]
@@ -69,6 +70,63 @@
             ],
             "context": [
               "file:line:any"
+            ]
+          }
+        },
+        {
+          "id": "LongLines100",
+          "message": "Lines should be a maximum of at most 100 characters.",
+          "severity": "WARNING",
+          "matches": {
+            "files": ["+\\.(kt|java)$"],
+            "patterns": [
+              "^.{100}(?<hl>.+)$"
+            ],
+            "excludes": [
+              "^import ",
+              "^package ",
+              "LINT\\.ThenChange\\("
+            ],
+            "context": [
+              "cl:title",
+              "cl:description",
+              "file:line:any"
+            ]
+          }
+        },
+        {
+          "id": "GenderNeutral",
+          "message": "Found a gendered pronoun.",
+          "severity": "WARNING",
+          "matches": {
+            "patterns": [
+              "(^|\\s|\\(|\\[)([Hh]e|[Hh]is|[Hh]ers?|[Hh]im|[Ss]he|[Gg]uys?)\\b"
+            ],
+            "context": [
+              "cl:title",
+              "cl:description",
+              "file:line:added"
+            ]
+          }
+        },
+        {
+          "id": "InclusiveLanguage",
+          "message": "Found non-inclusive language. Add nocheck comment to ignore.",
+          "severity": "WARNING",
+          "matches": {
+            "files": [
+              "-/presubmitchecks\\.json$"
+            ],
+            "patterns": [
+              "(?i)\\b((black|white)list|slave)\\b"
+            ],
+            "excludes": [
+              "\\bnocheck\\b"
+            ],
+            "context": [
+              "cl:title",
+              "cl:description",
+              "file:line:added"
             ]
           }
         }

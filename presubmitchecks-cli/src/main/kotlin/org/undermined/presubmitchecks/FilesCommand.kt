@@ -28,8 +28,10 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.FileSystems
+import java.nio.file.Path
 import java.nio.file.PathMatcher
 import java.nio.file.Paths
+import java.util.function.Predicate
 
 class FilesCommand : SuspendingCliktCommand("files") {
     val config by option(help="Configuration file path").optionalValue("")
@@ -97,8 +99,9 @@ class FilesCommand : SuspendingCliktCommand("files") {
             override fun report(result: CheckResult) {
                 when (result) {
                     is CheckResultMessage -> {
-                            echo(result.toConsoleOutput(), err = result.severity == CheckResultMessage.Severity.ERROR)
-                            echo("", err = result.severity == CheckResultMessage.Severity.ERROR)
+                        val isError = result.severity == CheckResultMessage.Severity.ERROR
+                        echo(result.toConsoleOutput(), err = isError)
+                        echo("", err = isError)
                     }
                     is CheckResultFix -> {
                         echo(result.toConsoleOutput())
@@ -122,7 +125,7 @@ class FilesCommand : SuspendingCliktCommand("files") {
     ): List<File> {
         val results = mutableListOf<File>()
 
-        fun traverse(dir: File, matcher: PathMatcher) {
+        fun traverse(dir: File, matcher: Predicate<Path>) {
             if (!dir.exists() || !dir.isDirectory) {
                 return
             }
@@ -131,23 +134,31 @@ class FilesCommand : SuspendingCliktCommand("files") {
 
             for (file in files) {
                 if (file.isDirectory) {
-                    if (includeDirectories && matcher.matches(Paths.get(file.absolutePath))) {
+                    if (includeDirectories && matcher.test(Paths.get(file.absolutePath))) {
                         results.add(file)
                     }
                     traverse(file, matcher) // Recurse first, potentially avoiding path creation
-                } else if (matcher.matches(Paths.get(file.absolutePath))) {
+                } else if (matcher.test(Paths.get(file.absolutePath))) {
                     results.add(file)
                 }
             }
         }
+        val positive = mutableListOf<PathMatcher>()
+        val negative = mutableListOf<PathMatcher>()
         items.forEach { glob ->
-            val file = File(base, glob)
-            if (file.exists()) {
-                results.add(file)
+            if (glob.startsWith("!")) {
+                negative.add(FileSystems.getDefault().getPathMatcher("glob:$glob"))
             } else {
-                val matcher = FileSystems.getDefault().getPathMatcher("glob:$glob")
-                traverse(base, matcher)
+                val file = File(base, glob)
+                if (file.exists()) {
+                    results.add(file)
+                } else {
+                    positive.add(FileSystems.getDefault().getPathMatcher("glob:$glob"))
+                }
             }
+        }
+        traverse(base) { path ->
+            positive.any { it.matches(path) } && negative.none { it.matches(path) }
         }
         return results
     }
