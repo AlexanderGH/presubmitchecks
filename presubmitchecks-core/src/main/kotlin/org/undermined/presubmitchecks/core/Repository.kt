@@ -38,13 +38,11 @@ class LocalFilesystemRepository(
     companion object {
         fun isText(inputStream: InputStream, bufferSize: Int = 4096): Boolean {
             val buffer = ByteArray(bufferSize)
-            var bytesRead: Int
-
-            inputStream.use { // Ensure the stream is closed
-                bytesRead = it.read(buffer)
+            val bytesRead: Int = inputStream.use { // Ensure the stream is closed
+                it.read(buffer)
             }
 
-            if (bytesRead == -1) {
+            if (bytesRead == -1 || bytesRead == 0) {
                 return true // Empty file is considered text
             }
 
@@ -55,7 +53,7 @@ class LocalFilesystemRepository(
                     return false
                 }
                 // Check for control characters outside the printable ASCII range
-                if (byte < 9 || byte > 13 && byte < 32) { // excluding \t \n \r
+                if (byte < 9 || byte in 14..31) { // excluding \t \n \r
                     return false
                 }
 

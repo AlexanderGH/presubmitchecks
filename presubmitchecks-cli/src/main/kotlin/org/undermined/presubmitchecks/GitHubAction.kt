@@ -105,7 +105,7 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
                             GitChangelists.parseFilePatch(patch)
                         } ?: emptyList(),
                         afterRef = event.pull_request.head.sha,
-                        isBinary = it.patch == null,
+                        isBinary = it.isBinary,
                     )
 
                     "removed" -> Changelist.FileOperation.RemovedFile(
@@ -114,7 +114,7 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
                             GitChangelists.parseFilePatch(patch)
                         } ?: emptyList(),
                         beforeRef = event.pull_request.base.sha,
-                        isBinary = it.patch == null,
+                        isBinary = it.isBinary,
                     )
 
                     "changed",
@@ -128,7 +128,7 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
                         } ?: emptyList(),
                         beforeRef = event.pull_request.base.sha,
                         afterRef = event.pull_request.head.sha,
-                        isBinary = it.patch == null,
+                        isBinary = it.isBinary,
                     )
 
                     else -> TODO(it.status)
@@ -163,25 +163,25 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
                             severity = result.severity,
                             title = "${result.checkGroupId}: ${result.title}",
                             message = result.message,
-                            file = location?.file.toString(),
+                            file = location?.file,
                             line = location?.startLine,
                             endLine = location?.endLine,
                             col = location?.startCol,
                             endColumn = location?.endCol,
                         )
+                        GitHubWorkflowCommands.debug(result.toConsoleOutput())
                     }
                     is CheckResultFix -> {
                         if (fix) {
                             fixes.add(result)
                         }
+                        GitHubWorkflowCommands.debug(result.toConsoleOutput())
                     }
                     is CheckResultDebug -> {
                         GitHubWorkflowCommands.debug(result.message)
                     }
                 }
             }
-
-            override suspend fun flush() = Unit
         }
 
         val repository = GitLocalRepository(
@@ -249,12 +249,18 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
 
         @Serializable
         data class GithubChangedFile(
+            val sha: String,
             val filename: String,
             val raw_url: String,
             val status: String,
             val patch: String? = null,
             val previous_filename: String? = null,
-        )
+        ) {
+            val isBinary = patch == null && sha !=EMPTY
+            companion object {
+                const val EMPTY = "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+            }
+        }
     }
 
     @Serializable
