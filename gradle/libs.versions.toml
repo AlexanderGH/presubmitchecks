@@ -1,15 +1,17 @@
 [versions]
 kotlin-gradle-plugin = "2.0.0"
+maven-publish = "0.30.0"
 
 [libraries]
-clikt = { module = "com.github.ajalt.clikt:clikt-markdown", version = "5.0.2"}
+clikt = { module = "com.github.ajalt.clikt:clikt-markdown", version = "5.0.2" }
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin-gradle-plugin" }
-kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version = "1.8.1"}
-kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version = "1.7.3"}
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version = "1.8.1" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version = "1.7.3" }
 re2j = { module = "com.google.re2j:re2j", version = "1.8"}
 retrofit = { module = "com.squareup.retrofit2:retrofit", version = "2.11.0" }
 retrofit-converter-kotlinx-serialization = { module = "com.squareup.retrofit2:converter-kotlinx-serialization", version = "2.11.0" }
 strikt = { module = "io.strikt:strikt-core", version = "0.35.1" }
 
 [plugins]
-kotlinx-serialization-json = { id = "org.jetbrains.kotlin.plugin.serialization", version = "2.0.20"}
+kotlinx-serialization-json = { id = "org.jetbrains.kotlin.plugin.serialization", version = "2.0.20" }
+maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "maven-publish" }
