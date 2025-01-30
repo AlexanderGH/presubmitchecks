@@ -35,8 +35,10 @@ class IfChangeThenChangeChecker(
     ChangelistVisitor.FileVisitor.FileAfterLineVisitor
 {
 
+    private val ifChange = """(IfChange)(?:\(([A-Za-z\-]+|@ignore)\))?"""
+    private val thenChange = """(ThenChange)\(([^):]*(?::[A-Za-z-]+)?)\)"""
     private val ifChangeThenChange =
-        """[\s/#;<>\-]*LINT\.(?:(IfChange|Ignore)(?:\(([A-Za-z\-]+|@ignore)\))?|(ThenChange)\(([^):]*(?::[A-Za-z-]+)?)\))[\s/#;<>\-]*""".toRegex()
+        """[\s/#;<>\-]*LINT\.(?:$ifChange|$thenChange)[\s/#;<>\-]*""".toRegex()
 
     /**
      * Key: The block id that is requested to have changes.
@@ -98,7 +100,11 @@ class IfChangeThenChangeChecker(
                     currentFile = null
                     return false
                 }
-                val label = if (blockLabel.isEmpty()) ":@${currentFileBlockCount}" else ":$blockLabel"
+                val label = if (blockLabel.isEmpty()) {
+                    ":@${currentFileBlockCount}"
+                } else {
+                    ":$blockLabel"
+                }
                 val file = currentFile!!
                 val canonical = "//$file$label"
                 blockStack.addLast(canonical)
@@ -208,6 +214,11 @@ class IfChangeThenChangeChecker(
     companion object {
         const val ID = "IfChangeThenChange"
         private const val TAG_NO_IFTT = "NO_IFTT"
+
+        // TODO: Allow wrapping ThenChange value onto multiple lines (\ for continuation, then
+        //   strip whitespace from next line's comment prefix)
+        // TODO: Allow specifying a prefix to strip off the location in the config, which allows
+        //   sharing the same rule for code shared in GitHub and an internal repo, e.g. google3.
 
         val PROVIDER = object : CheckerProvider {
             override val id: String = ID

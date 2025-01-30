@@ -1,12 +1,15 @@
 # Pre-Submit Checks for Repositories
 
+A single extensible tool for linting, fixing and formatting your code in several
+contexts (manual, git pre-commit, GitHub Action).
+
 ## Supported Checks
 
 - [Content Patterns](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/ContentPatternChecker.md)
-- [IfChangeThenChange/IfThisThenThat](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/IfChangeThenChangeChecker.md)
-- [KeepSorted](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/KeepSortedChecker.md)
-- [NewLine](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/NewLineChecker.md)
-- [ValidJson](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/ValidJsonChecker.md)
+- [LINT.IfChange](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/IfChangeThenChangeChecker.md)
+- [Keep Sorted](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/KeepSortedChecker.md)
+- [New Line](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/NewLineChecker.md)
+- [Valid JSON](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/ValidJsonChecker.md)
 
 ## Usage
 
@@ -19,7 +22,7 @@ Install the checker CLI using:
 ### Check Files
 
 ```shell
-./presubmitchecks-cli/build/install/presubmitchecks-cli/bin/presubmitchecks-cli files **.json
+./presubmitchecks-cli/build/install/presubmitchecks-cli/bin/presubmitchecks-cli files **.json '!**/dist/**''
 ```
 
 ### Git Pre-Commit
@@ -42,7 +45,7 @@ Add it to your PR workflow using:
 ```yaml
     steps:
       - name: Run Presubmit Checks
-        uses: 'AlexanderGH/presubmitchecks'
+        uses: 'AlexanderGH/presubmitchecks@main'
         id: presubmitchecks
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
