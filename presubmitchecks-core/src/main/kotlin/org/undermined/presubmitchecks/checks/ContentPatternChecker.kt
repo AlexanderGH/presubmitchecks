@@ -288,6 +288,8 @@ class ContentPatternChecker(
         const val CONTEXT_CL_TITLE = "cl:title"
         const val CONTEXT_CL_DESCRIPTION = "cl:description"
 
+        // TODO: Implement auto-fixes.
+
         val PROVIDER = object : CheckerProvider {
             override val id: String = ID
 

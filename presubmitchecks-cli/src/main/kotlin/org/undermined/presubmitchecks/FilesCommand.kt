@@ -3,10 +3,12 @@ package org.undermined.presubmitchecks
 import com.github.ajalt.clikt.command.SuspendingCliktCommand
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.arguments.multiple
+import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.optionalValue
 import com.github.ajalt.clikt.parameters.options.varargValues
+import com.github.ajalt.clikt.parameters.types.boolean
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import org.undermined.presubmitchecks.core.Changelist
@@ -37,6 +39,10 @@ class FilesCommand : SuspendingCliktCommand("files") {
     val config by option(help="Configuration file path").optionalValue("")
 
     val files by argument(help="Files to check. Reads from stdin if omitted.").multiple()
+
+    val prompt by option(help="Whether to prompt whether to continue, fail or auto-fix each issue.")
+        .boolean()
+        .default(false)
 
     val fix by option(help="Apply fixes the files.")
         .flag(default = false)
@@ -145,15 +151,16 @@ class FilesCommand : SuspendingCliktCommand("files") {
         }
         val positive = mutableListOf<PathMatcher>()
         val negative = mutableListOf<PathMatcher>()
+        val fs = FileSystems.getDefault()
         items.forEach { glob ->
             if (glob.startsWith("!")) {
-                negative.add(FileSystems.getDefault().getPathMatcher("glob:$glob"))
+                negative.add(fs.getPathMatcher("glob:${glob.substring(1)}"))
             } else {
                 val file = File(base, glob)
                 if (file.exists()) {
                     results.add(file)
                 } else {
-                    positive.add(FileSystems.getDefault().getPathMatcher("glob:$glob"))
+                    positive.add(fs.getPathMatcher("glob:$glob"))
                 }
             }
         }

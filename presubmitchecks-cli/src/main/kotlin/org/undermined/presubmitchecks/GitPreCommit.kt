@@ -7,6 +7,7 @@ import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.optionalValue
+import com.github.ajalt.clikt.parameters.types.boolean
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -36,6 +37,10 @@ internal class GitPreCommit : SuspendingCliktCommand() {
 
     val diff by option(help="Git diff output file. - for stdin. @exec to execute git")
         .default("@exec")
+
+    val prompt by option(help="Whether to prompt whether to continue, fail or auto-fix each issue.")
+        .boolean()
+        .default(false)
 
     val fix by option(help="Apply fixes to any changed files.")
         .flag(default = false)
@@ -115,8 +120,9 @@ internal class GitPreCommit : SuspendingCliktCommand() {
                             fixes.add(fixResult)
                         } else {
                             hasFailure = true
-                            echo(result.toConsoleOutput(), err = result.severity == CheckResultMessage.Severity.ERROR)
-                            echo("", err = result.severity == CheckResultMessage.Severity.ERROR)
+                            val isError = result.severity == CheckResultMessage.Severity.ERROR
+                            echo(result.toConsoleOutput(), err = isError)
+                            echo("", err = isError)
                         }
                     }
                     is CheckResultFix -> {

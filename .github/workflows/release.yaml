@@ -4,6 +4,11 @@ on:
   release:
     types: [prereleased, released, published]
 
+permissions:
+  id-token: write
+  contents: read
+  attestations: write
+
 jobs:
   build-and-upload:
     runs-on: ubuntu-latest
@@ -28,6 +33,13 @@ jobs:
 
       - name: Build Artifacts
         run: ./gradlew :presubmitchecks-cli:distZip :presubmitchecks-cli:fatJar
+
+      - name: Generate Artifact Attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            presubmitchecks-cli/build/distributions/presubmitchecks-cli.zip
+            presubmitchecks-cli/build/libs/presubmitchecks-cli-standalone.jar
 
       - name: Upload Artifacts to Release
         run: |

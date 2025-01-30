@@ -129,11 +129,21 @@ class NewLineChecker(
             }
 
             val issues = mutableListOf<String>()
+            var location: CheckResultMessage.Location? = null
             if (totalCr > 0) {
                 issues.add("File must use only \\n. Found $totalCr instances of \\r.")
+                location = CheckResultMessage.Location(
+                    file = name,
+                )
             }
             if (totalBytes > 0 && trailingNl != 1) {
                 issues.add("File must end in a single new line. Found $trailingNl new lines.")
+                if (location == null) {
+                    location = CheckResultMessage.Location(
+                        file = name,
+                        startLine = currentLine,
+                    )
+                }
             }
 
             if (issues.isNotEmpty()) {
@@ -143,9 +153,7 @@ class NewLineChecker(
                         severity = config.severity.toResultSeverity(),
                         title = "New Lines",
                         message = issues.joinToString(" "),
-                        location = CheckResultMessage.Location(
-                            file = name,
-                        ),
+                        location = location,
                         fix = CheckResultFix(
                             fixId = ID,
                             file = name,

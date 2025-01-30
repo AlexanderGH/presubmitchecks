@@ -2,6 +2,9 @@ package org.undermined.presubmitchecks.git
 
 import org.undermined.presubmitchecks.core.CheckResultMessage
 import java.io.File
+import java.security.SecureRandom
+import kotlin.random.asKotlinRandom
+import kotlin.streams.asSequence
 
 object GitHubWorkflowCommands {
     fun debug(message: String) {
@@ -43,8 +46,46 @@ object GitHubWorkflowCommands {
         }
     }
 
+    fun mask(value: String) {
+        command("add-mask", message = value)
+    }
+
+    private val randomChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    private val secureRandom by lazy {
+        SecureRandom()
+    }
+
+    fun stopCommands(block: () -> Unit) {
+        val randomString = secureRandom.ints(64, 0, randomChars.length)
+            .asSequence()
+            .map(randomChars::get)
+            .joinToString("")
+        command("stop-commands", message = randomString)
+        try {
+            block()
+        } finally {
+            command(randomString)
+        }
+    }
+
     fun outputVar(key: String, value: String) {
         File(System.getenv("GITHUB_OUTPUT")).appendText("$key=$value\n")
+    }
+
+    fun addState(key: String, value: String) {
+        File(System.getenv("GITHUB_STATE")).appendText("$key=$value\n")
+    }
+
+    fun setEnv(key: String, value: String) {
+        File(System.getenv("GITHUB_ENV")).appendText("$key=$value\n")
+    }
+
+    fun appendStepSummary(markdown: String) {
+        File(System.getenv("GITHUB_STEP_SUMMARY")).appendText("$markdown\n")
+    }
+
+    fun addPath(path: String) {
+        File(System.getenv("GITHUB_PATH")).appendText("$path\n")
     }
 
     private fun command(

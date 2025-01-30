@@ -10,7 +10,7 @@
           "matches": {
             "changeTargets": ["+^main$"],
             "patterns": [
-              "(?i)DO NOT (SUBMIT|MERGE)"
+              "(?i)DO NOT (SUBMIT|COMMIT|PUSH|MERGE)"
             ],
             "context": [
               "cl:title",

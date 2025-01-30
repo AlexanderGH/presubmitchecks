@@ -1,9 +1,18 @@
-# IfChangeThenChange / IfThisThenThat Checker
+# LINT.IfChange / IfChangeThenChange / IfThisThenThat Checker
 
-IfChangeThenChange (aka IfThisThenThat) allows you to request that if a block of content is
-modified, another block of content is also modified.
+IfChangeThenChange (aka IfThisThenThat or LINT.IfChange) allows you to request that if a block of
+content is modified, another block of content is also modified.
 
-## Syntax
+## Supported Features
+
+- ❌ Files
+- ✅ Git Pre-Commit
+- ✅ GitHub Actions
+- ❌ Fixes
+
+## Usage
+
+### Syntax
 
 Blocks start with `LINT.IfChange` and end with `LINT.ThenChange(target)`. Each directive must
 be on its own line, usually as comments. The `target` is composed of an optional file (if absent:
@@ -35,7 +44,7 @@ LINT.ThenChange(:other-block-name)
 LINT.ThenChange(file.txt:other-block-name)
 ```
 
-## Examples
+### Usage Examples
 
 The most common usage is to ensure if one file is modified, another one is too. This helps ensure
 some related data or lists stay in sync.
@@ -52,9 +61,23 @@ this you modify  line, you'll need to also modify foo.txt
 // LINT.ThenChange(foo.txt)
 ```
 
-## Skipping
+### Skipping
 
 To skip this check, add `NO_IFTT=[reason for skipping]` to your changelist/PR description.
+
+## Configuration
+
+- `severity`: The severity of the check.
+
+### Example Configuration
+
+```json
+{
+  "IfChangeThenChange": {
+    "severity": "ERROR"
+  }
+}
+```
 
 ## See Also
 
