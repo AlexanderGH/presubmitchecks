@@ -132,6 +132,9 @@
         }
       ]
     },
+    "DoNotSubmitIf": {
+      "severity": "WARNING"
+    },
     "IfChangeThenChange": {
       "severity": "WARNING"
     },
