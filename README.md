@@ -6,6 +6,7 @@ contexts (manual, git pre-commit, GitHub Action).
 ## Supported Checks
 
 - [Content Patterns](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/ContentPatternChecker.md)
+- [LINT.DoNotSubmitIf](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/DoNotSubmitIfChecker.md)
 - [LINT.IfChange](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/IfChangeThenChangeChecker.md)
 - [Keep Sorted](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/KeepSortedChecker.md)
 - [New Line](presubmitchecks-core/src/main/kotlin/org/undermined/presubmitchecks/checks/NewLineChecker.md)
