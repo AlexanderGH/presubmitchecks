@@ -1,8 +1,7 @@
 package org.undermined.presubmitchecks.core
 
 import kotlinx.serialization.Serializable
-import org.undermined.presubmitchecks.fixes.FileFixFilter
-import java.nio.file.Path
+import org.undermined.presubmitchecks.fixes.Fixes
 import java.util.Optional
 
 interface Checker {
@@ -73,7 +72,10 @@ data class CheckResultMessage(
                     append("\n")
                     append(it.file)
                     append(" ")
-                    append(arrayOf(it.startLine, ":", it.startCol, " ", it.endLine, ":", it.endCol).joinToString(""))
+                    append(
+                        arrayOf(it.startLine, ":", it.startCol, " ", it.endLine, ":", it.endCol)
+                            .joinToString("")
+                    )
 
                     if (false && it.startLine != null) {
                         append(" ${it.startLine}")
@@ -97,11 +99,22 @@ data class CheckResultMessage(
     }
 }
 
-data class CheckResultFix(
-    val fixId: String,
+interface CheckResultFix : CheckResult {
+    val fixId: String
+}
+
+data class CheckResultFileFix(
+    override val fixId: String,
     val file: String,
-    val transform: FileFixFilter,
-): CheckResult
+    val transform: Fixes.FileFixFilter,
+) : CheckResultFix
+
+data class CheckResultLineFix(
+    override val fixId: String,
+    val message: String,
+    val location: CheckResultMessage.Location,
+    val transform: Fixes.LineFixFilter,
+): CheckResultFix
 
 fun CheckerConfig.CheckerMode.toResultSeverity(): CheckResultMessage.Severity = when (this) {
     CheckerConfig.CheckerMode.DISABLED -> error("Check is disabled")
@@ -118,7 +131,11 @@ interface CheckerChangelistVisitorFactory {
     ): Optional<ChangelistVisitor>
 }
 
-suspend fun CheckerService.runChecks(repository: Repository, changelist: Changelist, reporter: CheckerReporter) {
+suspend fun CheckerService.runChecks(
+    repository: Repository,
+    changelist: Changelist,
+    reporter: CheckerReporter,
+) {
     checkers.values.filterIsInstance<CheckerChangelistVisitorFactory>().map {
         it.newCheckVisitor(repository, changelist, reporter = reporter)
     }

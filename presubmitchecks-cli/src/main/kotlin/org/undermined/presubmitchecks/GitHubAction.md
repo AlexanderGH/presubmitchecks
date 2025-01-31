@@ -1,15 +1,14 @@
 # GitHub Action Setup
 
-## Generate Fixes
-
-## Apply Fixes
-
-To automatically suggest fixes:
+## Run Checks
 
 ```yaml
-permissions:
-  contents: read
-  pull-requests: write
+name: Check PR
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited]
+    branches:
+      - main
 
 jobs:
   checks:
@@ -22,7 +21,52 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
       - name: Run Presubmit Checks
-        uses: 'AlexanderGH/presubmitchecks'
+        uses: 'AlexanderGH/presubmitchecks@main'
+        id: presubmitchecks
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+## Generate Fixes
+
+To run fixes on the checked out repo:
+
+```yaml
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Run Presubmit Checks
+        uses: 'AlexanderGH/presubmitchecks@main'
+        id: presubmitchecks
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: .github/presubmitchecks.json
+          apply-fixes: "true"
+```
+
+## Apply Fixes
+
+To automatically suggest fixes:
+
+```yaml
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Run Presubmit Checks
+        uses: 'AlexanderGH/presubmitchecks@main'
         id: presubmitchecks
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -38,18 +82,11 @@ jobs:
 Or to automatically push fixes:
 
 ```yaml
-name: Check PR
-on:
-  pull_request:
-    branches:
-      - main
-
-permissions:
-  contents: write
-
 jobs:
   checks:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -58,7 +95,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
       - name: Run Presubmit Checks
-        uses: 'AlexanderGH/presubmitchecks'
+        uses: 'AlexanderGH/presubmitchecks@main'
         id: presubmitchecks
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}

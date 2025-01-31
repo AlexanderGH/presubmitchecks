@@ -2,7 +2,7 @@ name: Publish Release Artifacts
 
 on:
   release:
-    types: [prereleased, released, published]
+    types: [prereleased, published]
 
 jobs:
   build-and-upload:
@@ -35,6 +35,7 @@ jobs:
         run: ./gradlew :presubmitchecks-cli:distZip :presubmitchecks-cli:fatJar
 
       - name: Generate Artifact Attestation
+        if: ${{github.event.release.tag_name}} != 'SNAPSHOT'
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: |
