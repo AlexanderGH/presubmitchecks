@@ -1,10 +1,12 @@
 package org.undermined.presubmitchecks.core
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.decodeFromStream
 import org.undermined.presubmitchecks.checks.ContentPatternChecker
+import org.undermined.presubmitchecks.checks.DoNotSubmitIfChecker
 import org.undermined.presubmitchecks.checks.NewLineChecker
 import org.undermined.presubmitchecks.checks.IfChangeThenChangeChecker
 import org.undermined.presubmitchecks.checks.KeepSortedChecker
@@ -15,6 +17,7 @@ class CheckerRegistry {
         private val allCheckerProviders = listOf(
             // keep-sorted start
             ContentPatternChecker.PROVIDER,
+            DoNotSubmitIfChecker.PROVIDER,
             IfChangeThenChangeChecker.PROVIDER,
             KeepSortedChecker.PROVIDER,
             NewLineChecker.PROVIDER,
@@ -22,11 +25,12 @@ class CheckerRegistry {
             // keep-sorted end
         ).associateBy { it.id }
 
+        @OptIn(ExperimentalSerializationApi::class)
         val defaultGlobalConfig: CheckerService.GlobalConfig by lazy {
             CheckerRegistry::class.java
-                .getResourceAsStream("/presubmitchecks.defaults.json").use {
+                .getResourceAsStream("/presubmitchecks.defaults.json")?.use {
                     Json.decodeFromStream(it)
-                }
+                } ?: CheckerService.GlobalConfig()
         }
 
         fun newServiceFromConfig(

@@ -1,5 +1,8 @@
 {
   "checkerConfigs": {
+    "DoNotSubmitIf": {
+      "severity": "ERROR"
+    },
     "IfChangeThenChange": {
       "severity": "WARNING"
     },
