@@ -5,6 +5,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.decodeFromJsonElement
 import org.undermined.presubmitchecks.core.Changelist
 import org.undermined.presubmitchecks.core.ChangelistVisitor
+import org.undermined.presubmitchecks.core.CheckResultFileFix
 import org.undermined.presubmitchecks.core.CheckResultFix
 import org.undermined.presubmitchecks.core.CheckResultMessage
 import org.undermined.presubmitchecks.core.Checker
@@ -154,7 +155,7 @@ class NewLineChecker(
                         title = "New Lines",
                         message = issues.joinToString(" "),
                         location = location,
-                        fix = CheckResultFix(
+                        fix = CheckResultFileFix(
                             fixId = ID,
                             file = name,
                             transform = ::autoFix

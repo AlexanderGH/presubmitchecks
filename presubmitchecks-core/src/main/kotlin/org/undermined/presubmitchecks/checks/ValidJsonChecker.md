@@ -7,7 +7,7 @@ Checks that all `.json` files can be parsed.
 - ✅ Files
 - ✅ Git Pre-Commit
 - ✅ GitHub Actions
-- ✅ Fixes
+- ❌ Fixes
 
 ## Configuration
 

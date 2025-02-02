@@ -24,7 +24,9 @@ import org.undermined.presubmitchecks.core.Changelist
 import org.undermined.presubmitchecks.core.ChangelistVisitor
 import org.undermined.presubmitchecks.core.CheckResult
 import org.undermined.presubmitchecks.core.CheckResultDebug
+import org.undermined.presubmitchecks.core.CheckResultFileFix
 import org.undermined.presubmitchecks.core.CheckResultFix
+import org.undermined.presubmitchecks.core.CheckResultLineFix
 import org.undermined.presubmitchecks.core.CheckResultMessage
 import org.undermined.presubmitchecks.core.CheckResultMessage.Severity
 import org.undermined.presubmitchecks.core.Checker
@@ -37,6 +39,7 @@ import org.undermined.presubmitchecks.core.CoreConfig
 import org.undermined.presubmitchecks.core.runChecks
 import org.undermined.presubmitchecks.core.visit
 import org.undermined.presubmitchecks.fixes.Fixes
+import org.undermined.presubmitchecks.fixes.Fixes.transformLines
 import org.undermined.presubmitchecks.git.GitChangelists
 import org.undermined.presubmitchecks.git.GitHubWorkflowCommands
 import org.undermined.presubmitchecks.git.GitLocalRepository
@@ -196,8 +199,30 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
             okHttpClient.connectionPool().evictAll()
         }
 
-        if (fixes.isNotEmpty()) {
-            val fixFiles = fixes.groupBy { it.file }
+        fixes.filterIsInstance<CheckResultLineFix>().groupBy { it.location.file }.mapValues {
+            it.value.groupBy {
+                it.location.startLine!!
+            }
+        }.forEach {
+            fixes.add(
+                CheckResultFileFix(
+                    fixId = "LineFixes:${it.key}",
+                    file = it.key,
+                    Fixes.FileFixFilter { inputStream, outputStream ->
+                        val transforms = it.value.mapValues {
+                            it.value.map {
+                                it.transform
+                            }.toSet()
+                        }
+                        inputStream.transformLines(outputStream, transforms)
+                    }
+                )
+            )
+        }
+
+        val fileFixes = fixes.filterIsInstance<CheckResultFileFix>()
+        if (fileFixes.isNotEmpty()) {
+            val fixFiles = fileFixes.groupBy { it.file }
             ByteArrayOutputStream(4096 * 8).use { tmpBuffer ->
                 fixFiles.forEach { fixesForFile ->
                     val transform = Fixes.chainStreamModifiers(
@@ -209,7 +234,7 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
                         fixesForFile.key,
                         event.pull_request.head.sha,
                     ).use {
-                        transform(it, tmpBuffer)
+                        transform.transform(it, tmpBuffer)
                     }
                     if (hasChanges) {
                         echo("Fixing: ${fixesForFile.key}")

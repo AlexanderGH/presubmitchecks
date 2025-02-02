@@ -7,6 +7,7 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import org.undermined.presubmitchecks.checks.ContentPatternChecker.Companion.PatternsConfig.CommentPattern
 import org.undermined.presubmitchecks.core.Changelist
 import org.undermined.presubmitchecks.core.ChangelistVisitor
+import org.undermined.presubmitchecks.core.CheckResultFileFix
 import org.undermined.presubmitchecks.core.CheckResultFix
 import org.undermined.presubmitchecks.core.CheckResultMessage
 import org.undermined.presubmitchecks.core.Checker
@@ -79,7 +80,7 @@ class KeepSortedChecker(
         fun visitAfterLine(name: String, line: FileVisitors.FileLine): Boolean {
             if (line.content.contains("keep-sorted ")) {
                 reporter.report(
-                    CheckResultFix(
+                    CheckResultFileFix(
                         fixId = ID,
                         file = name,
                         transform = ::autoFix,
@@ -109,7 +110,7 @@ class KeepSortedChecker(
                             file = name,
                             startLine = changed.get(),
                         ),
-                        fix = CheckResultFix(
+                        fix = CheckResultFileFix(
                             fixId = ID,
                             file = name,
                             transform = ::autoFix,

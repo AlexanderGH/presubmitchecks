@@ -2,6 +2,7 @@ package org.undermined.presubmitchecks.checks
 
 import com.google.re2j.Matcher
 import com.google.re2j.Pattern
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -9,21 +10,22 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.decodeFromStream
 import org.undermined.presubmitchecks.core.Changelist
 import org.undermined.presubmitchecks.core.ChangelistVisitor
+import org.undermined.presubmitchecks.core.CheckResultFix
+import org.undermined.presubmitchecks.core.CheckResultLineFix
 import org.undermined.presubmitchecks.core.CheckResultMessage
 import org.undermined.presubmitchecks.core.Checker
 import org.undermined.presubmitchecks.core.CheckerChangelistVisitorFactory
 import org.undermined.presubmitchecks.core.CheckerConfig
 import org.undermined.presubmitchecks.core.CheckerFileCollectionVisitorFactory
 import org.undermined.presubmitchecks.core.CheckerProvider
-import org.undermined.presubmitchecks.core.CheckerRegistry
 import org.undermined.presubmitchecks.core.CheckerReporter
 import org.undermined.presubmitchecks.core.FileCollection
 import org.undermined.presubmitchecks.core.FileVisitors
 import org.undermined.presubmitchecks.core.Repository
 import org.undermined.presubmitchecks.core.toResultSeverity
+import org.undermined.presubmitchecks.fixes.Fixes
 import java.util.Optional
 import java.util.function.BiFunction
-import java.util.function.Function
 import java.util.function.Predicate
 
 class ContentPatternChecker(
@@ -55,7 +57,38 @@ class ContentPatternChecker(
         val comment: PatternsConfig.CommentPattern,
         val context: String,
         val location: CheckResultMessage.Location? = null,
-    )
+        val matcher: Matcher? = null,
+    ) {
+        fun getMessage(): String {
+            if (matcher == null) {
+                return comment.message
+            }
+            var message = comment.message
+            matcher.pattern().namedGroups().forEach {
+                message = message.replace("{{${it.key}}}", matcher.group(it.value))
+            }
+            return message
+        }
+
+        fun getFix(): CheckResultLineFix? {
+            if (matcher == null || location == null) {
+                return null
+            }
+            val fixString = comment.matches.patterns.indexOfFirst {
+                it == matcher.pattern().pattern()
+            }.let {
+                comment.matches.fixes.getOrNull(it)
+            } ?: return null
+            return CheckResultLineFix(
+                comment.id,
+                getMessage(),
+                location,
+                Fixes.LineFixFilter { line, content ->
+                    matcher.replaceFirst(fixString)
+                }
+            )
+        }
+    }
 
     inner class Checker(
         private val reporter: CheckerReporter,
@@ -82,8 +115,8 @@ class ContentPatternChecker(
                         context == CONTEXT_CL_TITLE
                     }
                 }.forEach { comment ->
-                    if (comment.matchesPattern(changelist.title)) {
-                        issues.add(MatchedIssue(comment, CONTEXT_CL_TITLE))
+                    comment.matchPattern(changelist.title)?.let {
+                        issues.add(MatchedIssue(comment, CONTEXT_CL_TITLE, matcher = it))
                     }
                 }
                 commentsMatchingTarget.filter {
@@ -91,8 +124,8 @@ class ContentPatternChecker(
                         context == CONTEXT_CL_DESCRIPTION
                     }
                 }.forEach { comment ->
-                    if (comment.matchesPattern(changelist.description)) {
-                        issues.add(MatchedIssue(comment, CONTEXT_CL_DESCRIPTION))
+                    comment.matchPattern(changelist.description)?.let {
+                        issues.add(MatchedIssue(comment, CONTEXT_CL_DESCRIPTION, matcher = it))
                     }
                 }
                 if (issues.isNotEmpty()) {
@@ -118,8 +151,8 @@ class ContentPatternChecker(
                     context == CONTEXT_FILE_NAME
                 }
             }.forEach { comment ->
-                if (comment.matchesPattern(file.name)) {
-                    issues.add(MatchedIssue(comment, CONTEXT_FILE_NAME))
+                comment.matchPattern(file.name)?.let {
+                    issues.add(MatchedIssue(comment, CONTEXT_FILE_NAME, matcher = it))
                 }
             }
             if (issues.isNotEmpty()) {
@@ -153,7 +186,8 @@ class ContentPatternChecker(
                                 MatchedIssue(
                                     comment,
                                     CONTEXT_LINE_ADDED,
-                                    it.toLocation(file.name, line.line)
+                                    it.toLocation(file.name, line.line),
+                                    matcher = it,
                                 )
                             )
                         }
@@ -185,7 +219,8 @@ class ContentPatternChecker(
                                 MatchedIssue(
                                     comment,
                                     CONTEXT_LINE_REMOVED,
-                                    it.toLocation(file.name, line.line)
+                                    it.toLocation(file.name, line.line),
+                                    matcher = it,
                                 )
                             )
                         }
@@ -221,7 +256,8 @@ class ContentPatternChecker(
                         MatchedIssue(
                             comment,
                             CONTEXT_LINE_ANY,
-                            it.toLocation(name, line.line)
+                            it.toLocation(name, line.line),
+                            matcher = it,
                         )
                     )
                 }
@@ -252,17 +288,18 @@ class ContentPatternChecker(
                 checkGroupId = ID,
                 severity = topIssue.comment.severity ?: defaultSeverity,
                 title = topIssue.comment.title ?: topIssue.comment.id,
-                message = topIssue.comment.message + if (issues.size > 1) {
+                message = topIssue.getMessage() + if (issues.size > 1) {
                     """
                     |
                     |
                     |Additional Issues:
-                    ${issues.drop(1).joinToString("\n") { "|- ${it.comment.message}" }}
+                    ${issues.drop(1).joinToString("\n") { "|- ${it.getMessage()}" }}
                     """.trimMargin()
                 } else {
                     ""
                 },
                 location = topIssue.location?.takeIf { issues.size == 1 } ?: location,
+                fix = topIssue.getFix(),
             )
         }
 
@@ -310,6 +347,7 @@ class ContentPatternChecker(
             private val canned: List<String> = emptyList(),
         ) : CheckerConfig {
 
+            @OptIn(ExperimentalSerializationApi::class)
             val allPatterns by lazy {
                 patterns + canned.let { cannedId ->
                     if (cannedId.isEmpty()) {
@@ -335,10 +373,6 @@ class ContentPatternChecker(
                 val matches: MatchPattern,
             ) {
 
-                fun matchesPattern(value: String): Boolean {
-                    return matchPattern(value) != null
-                }
-
                 fun matchPattern(value: String): Matcher? {
                     val firstMatcher = matches.compiledPatterns.firstNotNullOfOrNull { pattern ->
                         val matcher = pattern.value.matcher(value)
@@ -362,8 +396,7 @@ class ContentPatternChecker(
                     val files: List<String> = emptyList(),
                     val patterns: List<String> = emptyList(),
                     val excludes: List<String> = emptyList(),
-                    // TODO: Add simple file + line based fix infra.
-                    //val fixes: List<String?> = emptyList(),
+                    val fixes: List<String?> = emptyList(),
                     val context: List<String> = listOf(
                         CONTEXT_FILE_NAME,
                         CONTEXT_LINE_ADDED,

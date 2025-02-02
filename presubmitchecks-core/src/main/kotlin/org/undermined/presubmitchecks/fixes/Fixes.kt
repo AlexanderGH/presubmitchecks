@@ -7,12 +7,18 @@ import java.io.PipedOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
-typealias FileFixFilter = (InputStream, OutputStream) -> Boolean
-
 object Fixes {
 
+    fun interface FileFixFilter {
+        fun transform(inputStream: InputStream, outputStream: OutputStream): Boolean
+    }
+
+    fun interface LineFixFilter {
+        fun transform(line: Int, content: String): String
+    }
+
     fun chainStreamModifiers(modifiers: List<FileFixFilter>): FileFixFilter {
-        return { inputStream, outputStream ->
+        return FileFixFilter { inputStream, outputStream ->
             var currentInputStream = inputStream
             val isDifferent = AtomicBoolean(false)
 
@@ -23,7 +29,7 @@ object Fixes {
                 val thisInput = currentInputStream
                 Thread {
                     try {
-                        if (modifier(thisInput, pipedOutputStream)) {
+                        if (modifier.transform(thisInput, pipedOutputStream)) {
                             isDifferent.set(true)
                         }
                     } finally {
@@ -70,6 +76,23 @@ object Fixes {
 
     fun InputStream.transformLines(
         outputStream: OutputStream,
+        transforms: Map<Int, Set<LineFixFilter>>,
+    ): Boolean {
+        var line = 0
+        return transformLines(outputStream) {
+            it.forEach {
+                line++
+                var content = it
+                transforms[line]?.forEach { transform ->
+                    content = transform.transform(line, content)
+                }
+                yield(content)
+            }
+        }
+    }
+
+    fun InputStream.transformLines(
+        outputStream: OutputStream,
         transform: suspend SequenceScope<String>.(Sequence<String>) -> Unit
     ): Boolean {
         val trackedInputStream = TrackingInputStream(this)
@@ -93,14 +116,14 @@ object Fixes {
 
     private class TrackingInputStream(private val inputStream: InputStream) : InputStream() {
 
-        private var lastByte: Int = -1 // Initialize with -1 to indicate no byte read yet
+        private var lastByte: Int = -1
 
         fun getLastByte(): Int = lastByte
 
         override fun read(): Int {
             val byte = inputStream.read()
             if (byte != -1) {
-                lastByte = byte // Update lastByte only if a byte was actually read
+                lastByte = byte
             }
             return byte
         }
@@ -108,7 +131,7 @@ object Fixes {
         override fun read(b: ByteArray, off: Int, len: Int): Int {
             val bytesRead = inputStream.read(b, off, len)
             if (bytesRead > 0) {
-                lastByte = b[off + bytesRead - 1].toInt() and 0xFF // Update lastByte with the last byte read
+                lastByte = b[off + bytesRead - 1].toInt() and 0xFF
             }
             return bytesRead
         }

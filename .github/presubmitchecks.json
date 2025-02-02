@@ -68,6 +68,9 @@
             "patterns": [
               "\\s+$"
             ],
+            "fixes": [
+              ""
+            ],
             "context": [
               "file:line:any"
             ]
@@ -88,19 +91,17 @@
               "LINT\\.ThenChange\\("
             ],
             "context": [
-              "cl:title",
-              "cl:description",
               "file:line:any"
             ]
           }
         },
         {
           "id": "GenderNeutral",
-          "message": "Found a gendered pronoun.",
+          "message": "Found a gendered pronoun: {{pronoun}}.",
           "severity": "WARNING",
           "matches": {
             "patterns": [
-              "(^|\\s|\\(|\\[)([Hh]e|[Hh]is|[Hh]ers?|[Hh]im|[Ss]he|[Gg]uys?)\\b"
+              "(^|\\s|\\(|\\[)(?<pronoun>[Hh]e|[Hh]is|[Hh]ers?|[Hh]im|[Ss]he|[Gg]uys?)\\b"
             ],
             "context": [
               "cl:title",
@@ -111,14 +112,15 @@
         },
         {
           "id": "InclusiveLanguage",
-          "message": "Found non-inclusive language. Add nocheck comment to ignore.",
+          "message": "Found non-inclusive language ({{word}}). Fix or add nocheck comment to ignore.",
           "severity": "WARNING",
           "matches": {
             "files": [
+              "+",
               "-/presubmitchecks\\.json$"
             ],
             "patterns": [
-              "(?i)\\b((black|white)list|slave)\\b"
+              "(?i)\\b(?<word>(black|white)list|slave)\\b"
             ],
             "excludes": [
               "\\bnocheck\\b"
