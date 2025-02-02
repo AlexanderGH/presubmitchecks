@@ -23,9 +23,16 @@ import org.undermined.presubmitchecks.core.CheckerService
 import org.undermined.presubmitchecks.core.FileCollection
 import org.undermined.presubmitchecks.core.LocalFilesystemRepository
 import org.undermined.presubmitchecks.core.Repository
+import org.undermined.presubmitchecks.core.applyFixes
+import org.undermined.presubmitchecks.core.reporters.AggregationReporter
+import org.undermined.presubmitchecks.core.reporters.CompositeReporter
+import org.undermined.presubmitchecks.core.reporters.ConsolePromptReporter
+import org.undermined.presubmitchecks.core.reporters.ConsoleReporter
+import org.undermined.presubmitchecks.core.reporters.FixFilteringReporter
 import org.undermined.presubmitchecks.core.runChecks
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets
@@ -34,6 +41,7 @@ import java.nio.file.Path
 import java.nio.file.PathMatcher
 import java.nio.file.Paths
 import java.util.function.Predicate
+import kotlin.system.measureTimeMillis
 
 class FilesCommand : SuspendingCliktCommand("files") {
     val config by option(help="Configuration file path").optionalValue("")
@@ -41,8 +49,7 @@ class FilesCommand : SuspendingCliktCommand("files") {
     val files by argument(help="Files to check. Reads from stdin if omitted.").multiple()
 
     val prompt by option(help="Whether to prompt whether to continue, fail or auto-fix each issue.")
-        .boolean()
-        .default(false)
+        .flag(default = false)
 
     val fix by option(help="Apply fixes the files.")
         .flag(default = false)
@@ -101,27 +108,64 @@ class FilesCommand : SuspendingCliktCommand("files") {
         } ?: CheckerService.GlobalConfig()
         val checkerService = CheckerRegistry.newServiceFromConfig(globalConfig)
 
-        val reporter = object : CheckerReporter {
-            override fun report(result: CheckResult) {
-                when (result) {
-                    is CheckResultMessage -> {
-                        val isError = result.severity == CheckResultMessage.Severity.ERROR
-                        echo(result.toConsoleOutput(), err = isError)
-                        echo("", err = isError)
+        val aggregationReporter = AggregationReporter()
+        val reporter = CompositeReporter(
+            listOf(aggregationReporter)
+        ).let {
+            val consoleReporter = ConsoleReporter(
+                out = { echo(it) },
+                err = { echo(it, err = true) },
+                filter = Predicate {
+                    it is CheckResultMessage || it is CheckResultDebug
+                },
+            )
+            if (prompt) {
+                ConsolePromptReporter(
+                    it,
+                    consoleReporter,
+                    prompt = { message ->
+                        echo(message, trailingNewline = false)
+                        // TODO: Windows support :/
+                        File("/dev/tty").bufferedReader().use { tty ->
+                            tty.readLine().trim()
+                        }
                     }
-                    is CheckResultFix -> {
-                        echo(result.toConsoleOutput())
-                        echo("")
-                    }
-                    is CheckResultDebug -> {
-                        echo(result.message)
-                    }
-                }
+                )
+            } else {
+                CompositeReporter(listOf(it, consoleReporter))
+            }
+        }.let {
+            if (fix) {
+                it
+            } else {
+                FixFilteringReporter(it)
             }
         }
 
         checkerService.runChecks(repository, fileCollection, reporter)
         reporter.flush()
+
+        if (fix) {
+            checkerService.applyFixes(
+                repository,
+                files = fileCollection.files,
+                fixes = aggregationReporter.fixes,
+                ref = "",
+                wrapper = { fixes, f ->
+                    echo("Fixing: ${fixes.key} (${fixes.value.map { it.fixId }})")
+                    try {
+                        val time = measureTimeMillis {
+                            f()
+                        }
+                        echo("Fixed: ${fixes.key} (${time}ms)")
+                    } catch (e: IOException) {
+                        echo("Could not fix: ${fixes.key}", err = true)
+                    }
+                }
+            )
+        }
+
+        checkerService.close()
     }
 
     private fun matchFiles(

@@ -9,7 +9,7 @@ import java.nio.charset.StandardCharsets
 interface Repository {
     suspend fun readFile(path: String, ref: String): InputStream
 
-    interface WritableRepository {
+    interface WritableRepository : Repository {
         suspend fun writeFile(path: String, writer: (OutputStream) -> Unit)
     }
 }

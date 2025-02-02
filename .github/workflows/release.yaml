@@ -35,7 +35,7 @@ jobs:
         run: ./gradlew :presubmitchecks-cli:distZip :presubmitchecks-cli:fatJar
 
       - name: Generate Artifact Attestation
-        if: ${{github.event.release.tag_name}} != 'SNAPSHOT'
+        if: github.event.release.tag_name != 'SNAPSHOT'
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: |

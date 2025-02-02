@@ -4,3 +4,6 @@ local.properties
 build
 /.idea
 
+*.jar
+*.zip
+*.tar.gz

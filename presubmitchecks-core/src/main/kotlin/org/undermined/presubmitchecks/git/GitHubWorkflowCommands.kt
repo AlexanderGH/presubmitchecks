@@ -1,7 +1,9 @@
 package org.undermined.presubmitchecks.git
 
 import org.undermined.presubmitchecks.core.CheckResultMessage
+import java.io.BufferedWriter
 import java.io.File
+import java.io.StringWriter
 import java.security.SecureRandom
 import kotlin.random.asKotlinRandom
 import kotlin.streams.asSequence
@@ -82,6 +84,12 @@ object GitHubWorkflowCommands {
 
     fun appendStepSummary(markdown: String) {
         File(System.getenv("GITHUB_STEP_SUMMARY")).appendText("$markdown\n")
+    }
+
+    fun appendStepSummary(block: BufferedWriter.() -> Unit) {
+        File(System.getenv("GITHUB_STEP_SUMMARY")).bufferedWriter().use {
+            it.block()
+        }
     }
 
     fun addPath(path: String) {
