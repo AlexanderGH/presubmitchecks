@@ -45,7 +45,7 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           config-file: .github/presubmitchecks.json
-          # apply-fixes: "true"
+          apply-fixes: "true"
 
 #      - name: Commit Fixes
 #        if: false && steps.presubmitchecks.outputs.applied-fixes == '1'

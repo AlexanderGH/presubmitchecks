@@ -1,7 +1,7 @@
 name: Close PR
 on:
   pull_request:
-    types: [ closed ]
+    types: [closed]
 
 jobs:
   clear-caches:
@@ -9,13 +9,10 @@ jobs:
     permissions:
       actions: write
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
       - name: Clear Actions Cache
         run: |
-          gh cache list --ref "refs/pull/${{ github.event.pull_request.number }}/merge" --limit 100 --json key | jq -r '.[] | .key'
-          gh cache list --ref "refs/pull/${{ github.event.pull_request.number }}/merge" --limit 100 --json key | jq -r '.[] | .key' | xargs -I {} gh cache delete "{}"
+          gh cache list --repo "${{ github.repository }}" --ref "refs/pull/${{ github.event.pull_request.number }}/merge" --limit 100 --json key | jq -r '.[] | .key'
+          gh cache list --repo "${{ github.repository }}" --ref "refs/pull/${{ github.event.pull_request.number }}/merge" --limit 100 --json key | jq -r '.[] | .key' | xargs -I {} gh cache delete --repo "${{ github.repository }}" "{}"
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
