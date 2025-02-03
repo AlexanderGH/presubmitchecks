@@ -1,3 +1,4 @@
+name: Close PR
 on:
   pull_request:
     types: [ closed ]
@@ -5,8 +6,16 @@ on:
 jobs:
   clear-caches:
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
     steps:
-      - name: Clear caches
-        uses: theAngularGuy/clear-cache-of-pull-request@v1.2.2
+      - uses: actions/checkout@v4
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.head_ref }}
+      - name: Clear Actions Cache
+        run: |
+          gh cache list --ref "refs/pull/${{ github.event.pull_request.number }}/merge" --limit 100 --json key | jq -r '.[] | .key'
+          gh cache list --ref "refs/pull/${{ github.event.pull_request.number }}/merge" --limit 100 --json key | jq -r '.[] | .key' | xargs -I {} gh cache delete "{}"
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
