@@ -8,6 +8,7 @@ import org.undermined.presubmitchecks.core.ChangelistVisitor.FileVisitor.FileBef
 import org.undermined.presubmitchecks.core.ChangelistVisitor.FileVisitor.FileBeforeSequentialVisitor
 import java.io.InputStream
 import java.nio.ByteBuffer
+import java.util.Optional
 
 interface ChangelistVisitor {
     fun enterChangelist(changelist: Changelist): Boolean { return true }

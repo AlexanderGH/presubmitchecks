@@ -27,7 +27,11 @@ tasks {
         archiveClassifier.set("standalone")
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
         manifest {
-            attributes(mapOf("Main-Class" to application.mainClass))
+            attributes(
+                mapOf(
+                    "Main-Class" to application.mainClass,
+                )
+            )
         }
         val sourcesMain = sourceSets.main
         dependsOn(configurations.runtimeClasspath)

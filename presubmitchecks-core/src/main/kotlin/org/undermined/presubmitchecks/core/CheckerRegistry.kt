@@ -11,6 +11,7 @@ import org.undermined.presubmitchecks.checks.NewLineChecker
 import org.undermined.presubmitchecks.checks.IfChangeThenChangeChecker
 import org.undermined.presubmitchecks.checks.KeepSortedChecker
 import org.undermined.presubmitchecks.checks.ValidJsonChecker
+import java.io.Closeable
 
 class CheckerRegistry {
     companion object {
@@ -36,10 +37,14 @@ class CheckerRegistry {
         fun newServiceFromConfig(
             globalConfig: CheckerService.GlobalConfig,
         ): CheckerService {
-            val mergedConfigs = defaultGlobalConfig.checkerConfigs + globalConfig.checkerConfigs
-            return CheckerService(globalConfig, mergedConfigs.mapValues {
-                allCheckerProviders.getValue(it.key).newChecker(it.value)
-            }.filterValues { it.config.severity != CheckerConfig.CheckerMode.DISABLED })
+            val mergedCheckerConfigs =
+                defaultGlobalConfig.checkerConfigs + globalConfig.checkerConfigs
+            return CheckerService(
+                globalConfig,
+                checkers = mergedCheckerConfigs.mapValues {
+                    allCheckerProviders.getValue(it.key).newChecker(it.value)
+                }.filterValues { it.config.severity != CheckerConfig.CheckerMode.DISABLED },
+            )
         }
     }
 }
@@ -47,25 +52,17 @@ class CheckerRegistry {
 class CheckerService(
     val globalConfig: GlobalConfig,
     internal val checkers: Map<String, Checker>,
-) {
-
+): Closeable {
     @Serializable
     data class GlobalConfig(
-        val textFiles: List<String> = listOf(
-            // keep-sorted start
-            ".java",
-            ".json",
-            ".kt",
-            ".kts",
-            ".md",
-            ".txt",
-            ".yaml",
-            ".yml",
-            // keep-sorted end
-        ),
-
-        val checkerConfigs: Map<String, JsonElement> = emptyMap()
+        val checkerConfigs: Map<String, JsonElement> = emptyMap(),
     )
+
+    override fun close() {
+        checkers.values.filterIsInstance<Closeable>().forEach {
+            it.close()
+        }
+    }
 }
 
 interface CheckerProvider {

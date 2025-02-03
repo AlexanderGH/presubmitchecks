@@ -6,7 +6,7 @@ maven-publish = "0.30.0"
 clikt = { module = "com.github.ajalt.clikt:clikt-markdown", version = "5.0.2" }
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin-gradle-plugin" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version = "1.8.1" }
-kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version = "1.7.3" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version = "1.8.0" }
 re2j = { module = "com.google.re2j:re2j", version = "1.8"}
 retrofit = { module = "com.squareup.retrofit2:retrofit", version = "2.11.0" }
 retrofit-converter-kotlinx-serialization = { module = "com.squareup.retrofit2:converter-kotlinx-serialization", version = "2.11.0" }

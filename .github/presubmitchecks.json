@@ -8,7 +8,9 @@
           "message": "The change should not be submitted/merged.",
           "severity": "ERROR",
           "matches": {
-            "changeTargets": ["+^main$"],
+            "changeTargets": [
+              "+^main$"
+            ],
             "patterns": [
               "(?i)DO NOT (SUBMIT|COMMIT|PUSH|MERGE)"
             ],
@@ -38,9 +40,11 @@
           "message": "Title must follow conventional commit syntax.",
           "severity": "WARNING",
           "matches": {
-            "patterns": [".+"],
+            "patterns": [
+              ".+"
+            ],
             "excludes": [
-              "^(?P<type>build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test|¯\\\\_\\(ツ\\)_/¯)(?P<scope>\\(\\w+\\))?(?P<breaking>!)?(?P<subject>:\\s.*)?|^(?P<merge>Merge \\w+)"
+              "^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test){1}(\\([\\w\\-\\.]+\\))?(!)?: "
             ],
             "context": [
               "cl:title"
@@ -81,7 +85,9 @@
           "message": "Lines should be a maximum of at most 100 characters.",
           "severity": "WARNING",
           "matches": {
-            "files": ["+\\.(kt|java)$"],
+            "files": [
+              "+\\.(kt|java)$"
+            ],
             "patterns": [
               "^.{100}(?<hl>.+)$"
             ],

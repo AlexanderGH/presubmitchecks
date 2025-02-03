@@ -54,9 +54,7 @@ class NewLineChecker(
             if (file is Changelist.FileOperation.RemovedFile || file.isBinary) {
                 return false
             }
-            if (newLineFiles.any {
-                file.name.endsWith(it)
-            }) {
+            if (file.isText) {
                 /*
                 val lastLine = when (file) {
                     is Changelist.FileOperation.AddedFile -> file.patchLines.lastOrNull()
@@ -249,7 +247,7 @@ class NewLineChecker(
             outputStream.write(LF_CODE)
             changes++
         }
-        return changes != 1
+        return changes != 0
     }
 
     /*
@@ -302,27 +300,6 @@ class NewLineChecker(
         const val CR = '\r'
         const val CR_CODE = CR.code
         const val CR_BYTE = CR_CODE.toByte()
-
-        private val newLineFiles = setOf(
-            // keep-sorted start
-            ".gradle",
-            ".java",
-            ".js",
-            ".json",
-            ".kt",
-            ".kts",
-            ".md",
-            ".properties",
-            ".py",
-            ".sh",
-            ".toml",
-            ".ts",
-            ".txt",
-            ".xml",
-            ".yaml",
-            ".yml",
-            // keep-sorted end
-        )
 
         val PROVIDER = object : CheckerProvider {
             override val id: String = ID

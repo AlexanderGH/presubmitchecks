@@ -7,30 +7,28 @@ import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.optionalValue
-import com.github.ajalt.clikt.parameters.types.boolean
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import org.undermined.presubmitchecks.core.Changelist
-import org.undermined.presubmitchecks.core.CheckResult
 import org.undermined.presubmitchecks.core.CheckResultDebug
-import org.undermined.presubmitchecks.core.CheckResultFileFix
-import org.undermined.presubmitchecks.core.CheckResultFix
-import org.undermined.presubmitchecks.core.CheckResultLineFix
 import org.undermined.presubmitchecks.core.CheckResultMessage
 import org.undermined.presubmitchecks.core.CheckerRegistry
-import org.undermined.presubmitchecks.core.CheckerReporter
 import org.undermined.presubmitchecks.core.CheckerService
+import org.undermined.presubmitchecks.core.applyFixes
+import org.undermined.presubmitchecks.core.reporters.AggregationReporter
+import org.undermined.presubmitchecks.core.reporters.CompositeReporter
+import org.undermined.presubmitchecks.core.reporters.ConsolePromptReporter
+import org.undermined.presubmitchecks.core.reporters.ConsoleReporter
+import org.undermined.presubmitchecks.core.reporters.FixFilteringReporter
 import org.undermined.presubmitchecks.core.runChecks
-import org.undermined.presubmitchecks.fixes.Fixes
-import org.undermined.presubmitchecks.fixes.Fixes.transformLines
 import org.undermined.presubmitchecks.git.GitChangelists
 import org.undermined.presubmitchecks.git.GitLocalRepository
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import java.util.function.Predicate
 import kotlin.system.measureTimeMillis
 
 internal class GitPreCommit : SuspendingCliktCommand() {
@@ -40,8 +38,7 @@ internal class GitPreCommit : SuspendingCliktCommand() {
         .default("@exec")
 
     val prompt by option(help="Whether to prompt whether to continue, fail or auto-fix each issue.")
-        .boolean()
-        .default(false)
+        .flag(default = false)
 
     val fix by option(help="Apply fixes to any changed files.")
         .flag(default = false)
@@ -107,95 +104,74 @@ internal class GitPreCommit : SuspendingCliktCommand() {
         } ?: CheckerService.GlobalConfig()
         val checkerService = CheckerRegistry.newServiceFromConfig(globalConfig)
 
-        var hasFailure = false
         val repository = GitLocalRepository(
             File("."),
             currentRef = lazy { "" }
         )
-        val fixes = mutableListOf<CheckResultFix>()
-        val reporter = object : CheckerReporter {
-            override fun report(result: CheckResult) {
-                when (result) {
-                    is CheckResultMessage -> {
-                        val fixResult = result.fix
-                        if (fix && fixResult != null) {
-                            fixes.add(fixResult)
-                        } else {
-                            hasFailure = true
-                            val isError = result.severity == CheckResultMessage.Severity.ERROR
-                            echo(result.toConsoleOutput(), err = isError)
-                            echo("", err = isError)
+
+        val aggregationReporter = AggregationReporter()
+        val reporter = CompositeReporter(
+            listOf(aggregationReporter)
+        ).let {
+            val consoleReporter = ConsoleReporter(
+                out = { echo(it) },
+                err = { echo(it, err = true) },
+                filter = Predicate {
+                    it is CheckResultMessage || it is CheckResultDebug
+                },
+            )
+            if (prompt) {
+                ConsolePromptReporter(
+                    it,
+                    consoleReporter,
+                    prompt = { message ->
+                        echo(message, trailingNewline = false)
+                        // TODO: Windows support :/
+                        File("/dev/tty").bufferedReader().use { tty ->
+                            tty.readLine().trim()
                         }
                     }
-                    is CheckResultFix -> {
-                        if (fix) {
-                            fixes.add(result)
-                        }
-                    }
-                    is CheckResultDebug -> {
-                        echo(result.message)
-                    }
-                }
+                )
+            } else {
+                CompositeReporter(listOf(it, consoleReporter))
+            }
+        }.let {
+            if (fix) {
+                it
+            } else {
+                FixFilteringReporter(it)
             }
         }
 
         checkerService.runChecks(repository, changelist, reporter)
         reporter.flush()
 
-        fixes.filterIsInstance<CheckResultLineFix>().groupBy { it.location.file }.mapValues {
-            it.value.groupBy {
-                it.location.startLine!!
-            }
-        }.forEach {
-            fixes.add(
-                CheckResultFileFix(
-                    fixId = "LineFixes:${it.key}",
-                    file = it.key,
-                    Fixes.FileFixFilter { inputStream, outputStream ->
-                        val transforms = it.value.mapValues {
-                            it.value.map {
-                                it.transform
-                            }.toSet()
+        if (fix) {
+            checkerService.applyFixes(
+                repository,
+                files = changelist.files,
+                fixes = aggregationReporter.fixes,
+                ref = "",
+                wrapper = { fixes, f ->
+                    echo("Fixing: ${fixes.key} (${fixes.value.map { it.fixId }})")
+                    try {
+                        val time = measureTimeMillis {
+                            f()
                         }
-                        inputStream.transformLines(outputStream, transforms)
+                        echo("Fixed: ${fixes.key} (${time}ms)")
+                    } catch (e: IOException) {
+                        echo("Could not fix: ${fixes.key}", err = true)
                     }
-                )
+                }
             )
         }
 
-        val fileFixes = fixes.filterIsInstance<CheckResultFileFix>()
-        if (fileFixes.isNotEmpty()) {
-            val fixFiles = fileFixes.groupBy { it.file }
-            ByteArrayOutputStream(4096 * 8).use { tmpBuffer ->
-                fixFiles.forEach { fixesForFile ->
-                    val transform = Fixes.chainStreamModifiers(
-                        fixesForFile.value
-                            .distinctBy { it.fixId }
-                            .map { it.transform }
-                    )
-                    val hasChanges = repository.readFile(fixesForFile.key, "").use {
-                        transform.transform(it, tmpBuffer)
-                    }
-                    if (hasChanges) {
-                        echo("Fixing: ${fixesForFile.key}")
-                        try {
-                            val time = measureTimeMillis {
-                                repository.writeFile(fixesForFile.key) {
-                                    tmpBuffer.writeTo(it)
-                                }
-                            }
-                            echo("Fixed: ${fixesForFile.key} (${time}ms)")
-                        } catch (e: IOException) {
-                            echo("Could not fix: ${fixesForFile.key}", err = true)
-                        }
-                    }
-                    tmpBuffer.reset()
-                }
-                tmpBuffer.close()
-            }
-        }
+        checkerService.close()
 
-        if (hasFailure) {
+        if (aggregationReporter.results.filterIsInstance<CheckResultMessage>().any {
+            it.severity == CheckResultMessage.Severity.ERROR
+                    && (!fix || it.fix == null)
+        }) {
             throw CliktError(statusCode = 1)
         }
     }

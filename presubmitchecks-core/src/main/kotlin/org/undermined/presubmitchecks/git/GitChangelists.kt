@@ -72,7 +72,10 @@ object GitChangelists {
                     }
                 }
                 currentPatchContent.clear()
-            } else if (line.startsWith("rename from ") || line.startsWith("new file ") || line.startsWith("deleted file ")) {
+            } else if (
+                line.startsWith("rename from ")
+                || line.startsWith("new file ")
+                || line.startsWith("deleted file ")) {
 
             } else if (line == "\\ No newline at end of file") {
                 currentPatchContent.appendLine(line)

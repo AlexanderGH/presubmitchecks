@@ -1,5 +1,7 @@
 package org.undermined.presubmitchecks.core
 
+import java.util.Optional
+
 data class Changelist(
     val title: String,
     val description: String,
@@ -57,4 +59,27 @@ data class Changelist(
         REMOVED,
         CONTEXT
     }
+}
+
+interface CheckerChangelistVisitorFactory {
+    fun newCheckVisitor(
+        repository: Repository,
+        changelist: Changelist,
+        reporter: CheckerReporter,
+    ): Optional<ChangelistVisitor>
+}
+
+suspend fun CheckerService.runChecks(
+    repository: Repository,
+    changelist: Changelist,
+    reporter: CheckerReporter,
+) {
+    checkers.values.filterIsInstance<CheckerChangelistVisitorFactory>().map {
+        it.newCheckVisitor(repository, changelist, reporter = reporter)
+    }
+        .filter { it.isPresent }
+        .map { it.get() }
+        .takeIf { it.isNotEmpty() }?.let {
+            changelist.visit(repository, it)
+        }
 }

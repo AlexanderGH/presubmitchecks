@@ -4,42 +4,29 @@ import com.github.ajalt.clikt.command.SuspendingCliktCommand
 import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
-import com.github.ajalt.clikt.parameters.options.optionalValue
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.boolean
-import com.github.ajalt.clikt.parameters.types.choice
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asExecutor
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromStream
-import kotlinx.serialization.json.encodeToJsonElement
 import okhttp3.MediaType
 import okhttp3.OkHttpClient
-import org.undermined.presubmitchecks.checks.IfChangeThenChangeChecker
 import org.undermined.presubmitchecks.core.Changelist
-import org.undermined.presubmitchecks.core.ChangelistVisitor
 import org.undermined.presubmitchecks.core.CheckResult
 import org.undermined.presubmitchecks.core.CheckResultDebug
-import org.undermined.presubmitchecks.core.CheckResultFileFix
 import org.undermined.presubmitchecks.core.CheckResultFix
-import org.undermined.presubmitchecks.core.CheckResultLineFix
 import org.undermined.presubmitchecks.core.CheckResultMessage
-import org.undermined.presubmitchecks.core.CheckResultMessage.Severity
-import org.undermined.presubmitchecks.core.Checker
-import org.undermined.presubmitchecks.core.CheckerChangelistVisitorFactory
-import org.undermined.presubmitchecks.core.CheckerConfig
 import org.undermined.presubmitchecks.core.CheckerRegistry
 import org.undermined.presubmitchecks.core.CheckerReporter
 import org.undermined.presubmitchecks.core.CheckerService
-import org.undermined.presubmitchecks.core.CoreConfig
+import org.undermined.presubmitchecks.core.applyFixes
+import org.undermined.presubmitchecks.core.reporters.AggregationReporter
+import org.undermined.presubmitchecks.core.reporters.CompositeReporter
+import org.undermined.presubmitchecks.core.reporters.FixFilteringReporter
 import org.undermined.presubmitchecks.core.runChecks
-import org.undermined.presubmitchecks.core.visit
-import org.undermined.presubmitchecks.fixes.Fixes
-import org.undermined.presubmitchecks.fixes.Fixes.transformLines
 import org.undermined.presubmitchecks.git.GitChangelists
 import org.undermined.presubmitchecks.git.GitHubWorkflowCommands
 import org.undermined.presubmitchecks.git.GitLocalRepository
@@ -50,10 +37,8 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Path
 import retrofit2.http.Query
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
-import java.io.InputStream
 import kotlin.system.measureTimeMillis
 
 class GitHubAction : SuspendingCliktCommand("github-action") {
@@ -146,21 +131,11 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
         } ?: CheckerService.GlobalConfig()
         val checkerService = CheckerRegistry.newServiceFromConfig(globalConfig)
 
-        var hasFailure = false
-
-        val fixes = mutableListOf<CheckResultFix>()
-        val reporter = object : CheckerReporter {
+        val aggregationReporter = AggregationReporter()
+        val workflowActionReporter = object : CheckerReporter {
             override fun report(result: CheckResult) {
                 when (result) {
                     is CheckResultMessage -> {
-                        val fixResult = result.fix
-                        if (fix && fixResult != null) {
-                            fixes.add(fixResult)
-                        } else {
-                            if (result.severity == Severity.ERROR) {
-                                hasFailure = true
-                            }
-                        }
                         val location = result.location
                         GitHubWorkflowCommands.message(
                             severity = result.severity,
@@ -175,15 +150,21 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
                         GitHubWorkflowCommands.debug(result.toConsoleOutput())
                     }
                     is CheckResultFix -> {
-                        if (fix) {
-                            fixes.add(result)
-                        }
                         GitHubWorkflowCommands.debug(result.toConsoleOutput())
                     }
                     is CheckResultDebug -> {
                         GitHubWorkflowCommands.debug(result.message)
                     }
                 }
+            }
+        }
+        val reporter = CompositeReporter(
+            listOf(aggregationReporter, workflowActionReporter)
+        ).let {
+            if (fix) {
+                it
+            } else {
+                FixFilteringReporter(it)
             }
         }
 
@@ -199,64 +180,95 @@ class GitHubAction : SuspendingCliktCommand("github-action") {
             okHttpClient.connectionPool().evictAll()
         }
 
-        fixes.filterIsInstance<CheckResultLineFix>().groupBy { it.location.file }.mapValues {
-            it.value.groupBy {
-                it.location.startLine!!
-            }
-        }.forEach {
-            fixes.add(
-                CheckResultFileFix(
-                    fixId = "LineFixes:${it.key}",
-                    file = it.key,
-                    Fixes.FileFixFilter { inputStream, outputStream ->
-                        val transforms = it.value.mapValues {
-                            it.value.map {
-                                it.transform
-                            }.toSet()
+        if (fix) {
+            val hasFixes = checkerService.applyFixes(
+                repository,
+                files = changelist.files,
+                fixes = aggregationReporter.fixes,
+                ref = event.pull_request.head.sha,
+                wrapper = { fixes, f ->
+                    echo("Fixing: ${fixes.key} (${fixes.value.map { it.fixId }})")
+                    try {
+                        val time = measureTimeMillis {
+                            f()
                         }
-                        inputStream.transformLines(outputStream, transforms)
+                        echo("Fixed: ${fixes.key} (${time}ms)")
+                    } catch (e: IOException) {
+                        echo("Could not fix: ${fixes.key}", err = true)
                     }
-                )
-            )
-        }
-
-        val fileFixes = fixes.filterIsInstance<CheckResultFileFix>()
-        if (fileFixes.isNotEmpty()) {
-            val fixFiles = fileFixes.groupBy { it.file }
-            ByteArrayOutputStream(4096 * 8).use { tmpBuffer ->
-                fixFiles.forEach { fixesForFile ->
-                    val transform = Fixes.chainStreamModifiers(
-                        fixesForFile.value
-                            .distinctBy { it.fixId }
-                            .map { it.transform }
-                    )
-                    val hasChanges = repository.readFile(
-                        fixesForFile.key,
-                        event.pull_request.head.sha,
-                    ).use {
-                        transform.transform(it, tmpBuffer)
-                    }
-                    if (hasChanges) {
-                        echo("Fixing: ${fixesForFile.key}")
-                        try {
-                            val time = measureTimeMillis {
-                                repository.writeFile(fixesForFile.key) {
-                                    tmpBuffer.writeTo(it)
-                                }
-                            }
-                            echo("Fixed: ${fixesForFile.key} (${time}ms)")
-                        } catch (e: IOException) {
-                            echo("Could not fix: ${fixesForFile.key}", err = true)
-                        }
-                    }
-                    tmpBuffer.reset()
                 }
-                tmpBuffer.close()
+            )
+            if (hasFixes) {
+                GitHubWorkflowCommands.outputVar("APPLIED_FIXES", "1")
             }
-            GitHubWorkflowCommands.outputVar("APPLIED_FIXES", "1")
         }
 
-        if (hasFailure) {
+        checkerService.close()
+
+        GitHubWorkflowCommands.appendStepSummary {
+            appendLine("## Presubmit Checks")
+            var items = 0
+            aggregationReporter.results.filterIsInstance<CheckResultMessage>()
+                .groupBy {
+                    it.severity
+                }.entries.sortedByDescending {
+                    it.key
+                }.also {
+                    if (it.isNotEmpty()) {
+                        items++
+                    }
+                }.forEach {
+                    appendLine("<details open>")
+                    appendLine("<summary>")
+                    appendLine(
+                        when (it.key) {
+                            CheckResultMessage.Severity.NOTE ->
+                                "ℹ\uFE0F Information (${it.value.size})"
+                            CheckResultMessage.Severity.WARNING ->
+                                "⚠\uFE0F Warnings (${it.value.size})"
+                            CheckResultMessage.Severity.ERROR ->
+                                "\uD83D\uDED1 Errors (${it.value.size})"
+                        }
+                    )
+                    appendLine("</summary>")
+
+                    appendLine()
+                    it.value.forEach { message ->
+                        message.location?.let { location ->
+                            append("`")
+                            append(location.file)
+                            if (location.startLine != null) {
+                                append(":")
+                                append(location.startLine.toString())
+                            }
+                            append("` ")
+                        }
+                        append("**")
+                        append(message.title)
+                        append(":** ")
+                        append(message.message)
+                        append(" *[")
+                        append(message.checkGroupId)
+                        append("]*")
+                        appendLine()
+                    }
+                    appendLine("</details>")
+                    appendLine()
+                }
+
+            if (items == 0) {
+                appendLine("✅ No Issues Found")
+            }
+
+            appendLine()
+            appendLine("---")
+            appendLine()
+        }
+
+        if (aggregationReporter.results.filterIsInstance<CheckResultMessage>().any {
+                it.severity == CheckResultMessage.Severity.ERROR
+                        && (!fix || it.fix == null)
+            }) {
             throw CliktError(statusCode = 1)
         }
     }

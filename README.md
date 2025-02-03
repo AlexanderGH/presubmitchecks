@@ -1,6 +1,6 @@
 # Pre-Submit Checks for Repositories
 
-A single extensible tool for linting, fixing and formatting your code in several
+A single extensible tool for linting and fixing your code in several
 contexts (manual, git pre-commit, GitHub Action).
 
 ## Supported Checks
@@ -94,7 +94,8 @@ A configuration file can be specified with `--config`, e.g. `--config .github/pr
 When using the GitHub action, it can be specified using the `config-file` input.
 
 The default configuration can be found
-[here](presubmitchecks-core/src/main/resources/presubmitchecks.defaults.json).
+[here](presubmitchecks-core/src/main/resources/presubmitchecks.defaults.json). A [more complex
+configuration](.github/presubmitchecks.json) is used by this repo's own presubmit checks.
 
 ### Example Configuration
 
