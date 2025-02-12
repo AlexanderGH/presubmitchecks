@@ -160,9 +160,9 @@ internal class IfChangeThenChangeCheckerTest {
             $LINT_IC(a)
             a
             $LINT_TC(FileB.txt:a)
-            
+
             $LINT_IC
-            
+
             $LINT_TC(FileB.txt:c)
         """.trimIndent()
         val changelist = Changelist(

@@ -45,8 +45,13 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           config-file: .github/presubmitchecks.json
+      - name: Run Presubmit Checks Fixes
+        uses: './'
+        id: presubmitchecks-fixes
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: .github/presubmitchecks.json
           apply-fixes: "true"
-
 #      - name: Commit Fixes
 #        if: false && steps.presubmitchecks.outputs.applied-fixes == '1'
 #        run: |

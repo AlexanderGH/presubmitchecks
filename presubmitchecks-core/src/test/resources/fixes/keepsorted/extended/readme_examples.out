@@ -187,3 +187,35 @@ Numeric:
       R4_MOTIVATOR,
       // keep-sorted-test end
     ]
+
+Numeric:
+    // keep-sorted-test start numeric=yes
+    Data Size A 20M
+    Data Size A 50K
+    Data Size A 250M
+    Data Size B 1B
+    Data Size B 80M
+    Data Size B 250K
+    // keep-sorted-test end
+
+Abbreviated Numeric:
+    // keep-sorted-test start numeric=yes by_regex=(?i)(.*?)(?:(\d+)b|(\d+)m|(\d+)k)
+    Data Size A 50K
+    Data Size A 20M
+    Data Size A 250M
+    Data Size B 250K
+    Data Size B 80M
+    Data Size B 1B
+    // keep-sorted-test end
+
+Sort by last name:
+    // keep-sorted-test start skip_lines=1 by_regex=['\w+ (\w+)', '(\w+) \w+']
+
+    Daniel Bernoulli
+    Jacob Bernoulli
+    Johann Bernoulli
+    Nicolaus Bernoulli
+    Emmy Noether
+    Max Noether
+
+    // keep-sorted-test end

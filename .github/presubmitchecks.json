@@ -66,11 +66,11 @@
         },
         {
           "id": "NoTrailingWhitespace",
-          "message": "Trailing whitespace is not allowed.",
+          "message": "Trailing whitespace '{{ws}}' is not allowed.",
           "severity": "WARNING",
           "matches": {
             "patterns": [
-              "\\s+$"
+              "(?<ws>\\s+)$"
             ],
             "fixes": [
               ""
