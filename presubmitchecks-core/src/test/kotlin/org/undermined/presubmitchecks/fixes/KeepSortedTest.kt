@@ -21,7 +21,7 @@ class KeepSortedTest {
             """
                 before
             // keep-sorted-test start
-            
+
             b
             a
             c
@@ -31,7 +31,7 @@ class KeepSortedTest {
             """
                 before
             // keep-sorted-test start
-            
+
             a
             b
             c
@@ -56,7 +56,8 @@ class KeepSortedTest {
                 "gradle.kts" to KeepSortedSectionConfig(
                     block = true
                 )
-            )
+            ),
+            debug = true,
         )
 
         val dataDir = File("src/test/resources/fixes/keepsorted/extended").absoluteFile
@@ -84,7 +85,10 @@ class KeepSortedTest {
         "sticky_prefixes",
     ])
     fun testGoogleCompat(checkId: String) {
-        val config = KeepSortedConfig(matchRegexp = KeepSortedConfig.pattern("test"))
+        val config = KeepSortedConfig(
+            matchRegexp = KeepSortedConfig.pattern("test"),
+            debug = true,
+        )
 
         keepSorted.checkGoogleCompatibility(config, checkId)
     }
@@ -112,15 +116,17 @@ class KeepSortedTest {
             dataDir.mkdirs()
         }
         val inputFile = File(dataDir, "$checkId.in")
+        val goldensPath =
+            "https://raw.githubusercontent.com/google/keep-sorted/refs/heads/main/goldens/"
         if (!inputFile.exists()) {
-            val url = URL("https://raw.githubusercontent.com/google/keep-sorted/refs/heads/main/goldens/$checkId.in")
+            val url = URL("$goldensPath$checkId.in")
             url.openStream().use {
                 Files.copy(it, inputFile.toPath())
             }
         }
         val outputFile = File(dataDir, "$checkId.out")
         if (!outputFile.exists()) {
-            val url = URL("https://raw.githubusercontent.com/google/keep-sorted/refs/heads/main/goldens/$checkId.out")
+            val url = URL("$goldensPath$checkId.out")
             url.openStream().use {
                 Files.copy(it, outputFile.toPath())
             }

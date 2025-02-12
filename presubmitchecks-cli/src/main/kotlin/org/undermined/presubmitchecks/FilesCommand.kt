@@ -171,6 +171,7 @@ class FilesCommand : SuspendingCliktCommand("files") {
     private fun matchFiles(
         base: File,
         items: List<String>,
+        skip: Set<String> = setOf(".git"),
         includeDirectories: Boolean = false,
     ): List<File> {
         val results = mutableListOf<File>()
@@ -183,7 +184,9 @@ class FilesCommand : SuspendingCliktCommand("files") {
             val files = dir.listFiles() ?: return
 
             for (file in files) {
-                if (file.isDirectory) {
+                if (skip.contains(file.name)) {
+                    continue
+                } else if (file.isDirectory) {
                     if (includeDirectories && matcher.test(Paths.get(file.absolutePath))) {
                         results.add(file)
                     }

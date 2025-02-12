@@ -97,8 +97,7 @@ class ContentPatternChecker(
         ChangelistVisitor.FileVisitor,
         ChangelistVisitor.FileVisitor.FileAfterLineVisitor {
 
-
-        var commentsMatchingTarget: List<PatternsConfig.CommentPattern> = emptyList()
+        var commentsMatchingTarget: List<PatternsConfig.CommentPattern> = config.allPatterns
 
         var commentsMatchingFile: List<PatternsConfig.CommentPattern> = emptyList()
 
@@ -140,6 +139,9 @@ class ContentPatternChecker(
         }
 
         override fun enterFile(file: Changelist.FileOperation): Boolean {
+            if (file.isBinary) {
+                return false
+            }
             commentsMatchingFile = commentsMatchingTarget.filter {
                 it.matches.context.any { context ->
                     context.startsWith("file:")

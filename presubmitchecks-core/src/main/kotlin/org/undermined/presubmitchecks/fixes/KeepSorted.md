@@ -21,14 +21,14 @@ Known Differences:
   <table border="0">
   <tr>
   <td>
-  
+
   ```
   a = [
 
     1,
     3, // three
     2
-  
+
   ]
   b = [
 
@@ -38,10 +38,10 @@ Known Differences:
 
   ]
   ```
-  
+
   </td>
   <td>
-  
+
   ```diff
    a = [
   +  // keep-sorted start maintain_suffix_order=(,)?(\s*(?://.*?|\/\*.*?|))
@@ -58,7 +58,7 @@ Known Differences:
   +  // keep-sorted end
    ]
   ```
-  
+
   </td>
   </tr>
   </table>

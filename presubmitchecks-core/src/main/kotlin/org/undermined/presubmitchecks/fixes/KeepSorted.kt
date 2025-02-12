@@ -46,7 +46,10 @@ class KeepSorted {
                             endedSectionState.sorted().forEachIndexed { i, it ->
                                 if (i == 0) {
                                     currentSectionBlock.nextLine(it)
-                                    sortKeyPosition = min(currentSectionBlock.groupSortKey.length, sortKeyPosition)
+                                    sortKeyPosition = min(
+                                        currentSectionBlock.groupSortKey.length,
+                                        sortKeyPosition,
+                                    )
                                 } else {
                                     currentSectionBlock.allLines.add(it)
                                 }
@@ -109,7 +112,8 @@ class KeepSorted {
                     groups.replaceAll {
                         it.copy(
                             sortKey = it.sortKey.copy(
-                                comparisonValue = it.sortKey.comparisonValue.replace(" ", "")
+                                comparisonValue = it.sortKey.comparisonValue
+                                    .replace(" ", "")
                             )
                         )
                     }
@@ -176,7 +180,10 @@ class KeepSorted {
                 //error("Line has invalid indent: $line")
             }
             if (sectionConfig.stickyComments && sectionConfig.commentPrefix.isNotEmpty()) {
-                if (line.startsWith(sectionConfig.commentPrefix, sectionConfig.leadingWhiteSpace.length)) {
+                if (line.startsWith(
+                        sectionConfig.commentPrefix,
+                        sectionConfig.leadingWhiteSpace.length,
+                )) {
                     allLines.add(line)
                     contentStartLine++
                     // We expect a continuation so don't process the current block
@@ -326,7 +333,10 @@ class KeepSorted {
                 sorted.sortWith { a, b ->
                     val prefixOrder = a.sortKey.prefixOrder.compareTo(b.sortKey.prefixOrder)
                     if (prefixOrder == 0) {
-                        a.sortKey.comparisonValue.compareTo(b.sortKey.comparisonValue, ignoreCase = false)
+                        a.sortKey.comparisonValue.compareTo(
+                            b.sortKey.comparisonValue,
+                            ignoreCase = false,
+                        )
                     } else {
                         prefixOrder
                     }
@@ -335,7 +345,10 @@ class KeepSorted {
                     sorted.sortWith { a, b ->
                         val prefixOrder = a.sortKey.prefixOrder.compareTo(b.sortKey.prefixOrder)
                         if (prefixOrder == 0) {
-                            a.sortKey.comparisonValue.compareTo(b.sortKey.comparisonValue, ignoreCase = true)
+                            a.sortKey.comparisonValue.compareTo(
+                                b.sortKey.comparisonValue,
+                                ignoreCase = true,
+                            )
                         } else {
                             prefixOrder
                         }
@@ -376,7 +389,10 @@ class KeepSorted {
             }
         }
 
-        private fun sortKeyForLineConfig(config: KeepSortedSectionConfig, line: String): GroupRecord.SortKey {
+        private fun sortKeyForLineConfig(
+            config: KeepSortedSectionConfig,
+            line: String,
+        ): GroupRecord.SortKey {
             var comparisonValue = line
             for (prefix in config.ignorePrefixes) {
                 if (comparisonValue.startsWith(prefix, ignoreCase = !config.case)) {
@@ -393,7 +409,7 @@ class KeepSorted {
                             matches.add(matcher.group())
                         } else {
                             for (i in 0 until  matcher.groupCount()) {
-                                matches.add(matcher.group(i + 1))
+                                matches.add(matcher.group(i + 1) ?: "")
                             }
                         }
                     }
@@ -401,8 +417,8 @@ class KeepSorted {
                 if (matches.isNotEmpty()) {
                     // Tie-breaker
                     matches.add(comparisonValue)
-                    // This is pretty hacky. Ideally we would support segment-based sorting similar to
-                    // the real keep-sorted.
+                    // This is pretty hacky. Ideally we would support segment-based sorting similar
+                    // to the real keep-sorted.
                     comparisonValue = matches.joinToString("\n")
                 }
             }
@@ -411,7 +427,8 @@ class KeepSorted {
             if (prefixOrder > 0) {
                 var maxLength = -1
                 config.prefixOrder.forEachIndexed { order, prefix ->
-                    if (comparisonValue.startsWith(prefix, ignoreCase = !config.case) && prefix.length > maxLength) {
+                    if (comparisonValue.startsWith(prefix, ignoreCase = !config.case)
+                        && prefix.length > maxLength) {
                         prefixOrder = order
                         maxLength = prefix.length
                     }
@@ -419,8 +436,8 @@ class KeepSorted {
             }
             if (config.numeric) {
                 comparisonValue = "(\\d+)".toRegex().replace(comparisonValue) {
-                    // This is pretty hacky. Ideally we would support segment-based sorting similar to
-                    // the real keep-sorted.
+                    // This is pretty hacky. Ideally we would support segment-based sorting similar
+                    // to the real keep-sorted.
                     it.value.padStart(100, '0')
                 }
             }
@@ -438,7 +455,12 @@ class KeepSorted {
             data class SortKey(val comparisonValue: String, val prefixOrder: Int)
 
             companion object {
-                val NULL_GROUP_RECORD = GroupRecord(0, 0, 0, SortKey("", 0))
+                val NULL_GROUP_RECORD = GroupRecord(
+                    0,
+                    0,
+                    0,
+                    SortKey("", 0),
+                )
             }
         }
 
@@ -494,10 +516,14 @@ data class KeepSortedConfig(
     companion object {
         private val patterns = mutableMapOf<String, Lazy<Regex>>().apply {
             this["kt"] = lazy {
-                "(?<prefix>\\s*)(?<comment>#|//)\\s+keep-sorted (?:(?<start>start(?<config> .*)?)|(?<end>end))".toRegex()
+                ("(?<prefix>\\s*)(?<comment>#|//)\\s+" +
+                        "keep-sorted (?:(?<start>start(?<config> .*)?)|(?<end>end))")
+                    .toRegex()
             }
             this["test"] = lazy {
-                "(?<prefix>\\s*)\\*?(?<comment>#|//|<!--|--|;|/\\*|)\\s*?(?:.+\\s+)?keep-sorted-test (?:(?<start>start(?<config> .*)?)|(?<end>end).*)".toRegex()
+                ("(?<prefix>\\s*)\\*?(?<comment>#|//|<!--|--|;|/\\*|)\\s*?(?:.+\\s+)?" +
+                        "keep-sorted-test (?:(?<start>start(?<config> .*)?)|(?<end>end).*)")
+                    .toRegex()
             }
         }.toMap()
 
@@ -574,15 +600,18 @@ data class KeepSortedSectionConfig(
                 val yaml = yamlFlowSequence.matchAt(configString, currentIndex)
                 if (yaml != null) {
                     fun replaceSingleQuotesWithDoubleQuotes(input: String): String {
-                        val pattern = "'((?:[^'\\\\]|\\.)*)'".toRegex()
+                        val pattern = "'((?:[^'\\\\]|.)*)'".toRegex()
                         return input.replace(pattern) { matchResult ->
-                            "\"" + matchResult.groupValues[1].replace("'", "\"") + "\""
+                            "\"" + matchResult.groupValues[1]
+                                .replace("\\", "\\\\")
+                                .replace("'", "\"") + "\""
                         }
                     }
                     currentIndex += yaml.value.length
-                    return Json.parseToJsonElement(replaceSingleQuotesWithDoubleQuotes(yaml.value)).jsonArray.map {
-                        it.jsonPrimitive.content
-                    }
+                    return Json.parseToJsonElement(replaceSingleQuotesWithDoubleQuotes(yaml.value))
+                        .jsonArray.map {
+                            it.jsonPrimitive.content
+                        }
                 }
                 return parseNoWhitespaceValue(configString, key).split(',')
             }
@@ -603,7 +632,8 @@ data class KeepSortedSectionConfig(
                         stickyComments = parseBool(configString, key)
                     )
                     "sticky_prefixes" -> config.copy(
-                        stickyPrefixes = parseStringList(configString, key).sortedByDescending { it.length }
+                        stickyPrefixes = parseStringList(configString, key)
+                            .sortedByDescending { it.length }
                     )
                     "skip_lines" -> config.copy(
                         skipLines = parseIntValue(configString, key)
@@ -632,7 +662,8 @@ data class KeepSortedSectionConfig(
                         }.onFailure { it.printStackTrace() }.getOrDefault(config.byRegex)
                     )
                     "ignore_prefixes" -> config.copy(
-                        ignorePrefixes = parseStringList(configString, key).sortedByDescending { it.length }
+                        ignorePrefixes = parseStringList(configString, key)
+                            .sortedByDescending { it.length }
                     )
                     "remove_duplicates" -> config.copy(
                         removeDuplicates = parseBool(configString, key)
